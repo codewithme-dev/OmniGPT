@@ -1,0 +1,1177 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Universal AI Chat Interface — Gemini Style (Zero-Build)</title>
+
+  <!-- Tailwind via CDN (no build) -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Marked for Markdown rendering -->
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+
+  <!-- Highlight.js for code blocks -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+
+  <style>
+    /* Basic Gemini-like palette */
+    :root{
+      --bg:#f7f7f8;
+      --panel:#ffffff;
+      --muted:#6b7280;
+      --accent:#0f172a;
+      --ai:#f3f4f6;
+      --user:#e6f2ff;
+    }
+    [data-theme="dark"]{
+      --bg: #0b1220;
+      --panel:#071021;
+      --muted:#9aa4b2;
+      --accent:#e6eef8;
+      --ai:#071923;
+      --user:#0b2a3f;
+    }
+
+    body{
+      background:var(--bg);
+      color:var(--accent);
+      -webkit-font-smoothing:antialiased;
+      -moz-osx-font-smoothing:grayscale;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+    }
+
+    /* Loader */
+    #loading{
+      position:fixed;
+      inset:0;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      background:linear-gradient(180deg, rgba(0,0,0,0.02), rgba(0,0,0,0.02));
+      z-index:60;
+      font-weight:600;
+    }
+
+    /* Sidebar */
+    .sidebar {
+      min-width: 260px;
+      max-width: 320px;
+    }
+
+    /* Chat area sizing */
+    .chat-window {
+      flex:1 1 auto;
+      min-height:0; /* allow proper flex scrolling */
+      display:flex;
+      flex-direction:column;
+    }
+
+    /* Message bubbles */
+    .msg-ai { background:var(--panel); border:1px solid rgba(0,0,0,0.04); }
+    .msg-user { background:var(--user); }
+
+    /* Sticky input area safe for mobile keyboards */
+    .input-area {
+      position: sticky;
+      bottom: 0;
+      z-index:50;
+      background: linear-gradient(180deg, transparent, rgba(0,0,0,0.02));
+      padding-bottom: env(safe-area-inset-bottom);
+    }
+
+    /* small animations */
+    .blinking {
+      animation: blink 1.2s infinite;
+    }
+    @keyframes blink { 50%{ opacity:0.2 } }
+
+    /* Mobile sidebar slide */
+    .mobile-sidebar {
+      transform: translateX(-110%);
+      transition: transform .25s ease;
+    }
+    .mobile-sidebar.open {
+      transform: translateX(0%);
+    }
+
+    /* markdown content */
+    .markdown :is(h1,h2,h3){ color:var(--accent); }
+    .markdown pre{ overflow:auto; border-radius:8px; padding:12px; background:var(--ai); }
+  </style>
+</head>
+<body class="min-h-screen antialiased" data-theme="light">
+  <!-- Fallback loader that prevents blank page on slow JS -->
+  <div id="loading">Loading App...</div>
+
+  <div id="app" class="min-h-screen hidden">
+    <div class="flex min-h-screen">
+      <!-- Sidebar -->
+      <aside id="sidebar" class="sidebar bg-white/50 backdrop-blur-md p-3 border-r border-gray-200 dark:border-gray-800 hidden md:block">
+        <div class="flex items-center justify-between mb-3">
+          <h2 class="font-semibold text-lg">Universal AI</h2>
+          <div class="flex items-center gap-2">
+            <button id="newChatBtn" class="px-3 py-1 bg-indigo-600 text-white rounded-md text-sm">New</button>
+            <button id="toggleTheme" title="Toggle Dark Mode" class="p-2 rounded-md hover:bg-gray-100 dark:hover:bg-white/5">
+              <svg id="themeIcon" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path id="themePath" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m8.66-10.66l-.7.7M4.05 19.95l-.7-.7M21 12h-1M4 12H3m15.66 4.66l-.7-.7M4.05 4.05l-.7.7"/></svg>
+            </button>
+          </div>
+        </div>
+
+        <div class="space-y-2">
+          <div class="flex items-center justify-between text-sm text-gray-500">
+            <div>Chats</div>
+            <div class="flex items-center gap-2">
+              <button id="importBtn" class="text-xs px-2 py-1 rounded border">Import</button>
+              <button id="exportBtn" class="text-xs px-2 py-1 rounded border">Export</button>
+            </div>
+          </div>
+          <div id="chatList" class="space-y-2 mt-2 overflow-auto" style="max-height:65vh"></div>
+        </div>
+
+        <div class="mt-4 border-t pt-3 text-sm text-gray-500">
+          <div class="mb-2 font-medium">Settings</div>
+          <div class="space-y-2">
+            <div>
+              <label class="text-xs text-gray-600">OpenRouter API Key</label>
+              <input id="apiKey" type="password" class="w-full mt-1 p-2 rounded border text-sm" placeholder="sk-... (stored in localStorage)" />
+            </div>
+            <div>
+              <label class="text-xs text-gray-600">Model</label>
+              <input id="modelName" type="text" class="w-full mt-1 p-2 rounded border text-sm" value="deepseek/deepseek-r1:free" />
+            </div>
+            <div>
+              <label class="text-xs text-gray-600">Global System Prompt</label>
+              <textarea id="globalSystem" rows="3" class="w-full mt-1 p-2 rounded border text-sm" placeholder="You are a helpful assistant..."></textarea>
+            </div>
+            <div class="flex gap-2 mt-2">
+              <button id="saveSettings" class="px-3 py-2 bg-green-600 text-white rounded">Save</button>
+              <button id="clearStorage" class="px-3 py-2 bg-red-600 text-white rounded">Clear All</button>
+            </div>
+          </div>
+        </div>
+      </aside>
+
+      <!-- Mobile header -->
+      <div class="flex md:hidden items-center justify-between w-full p-3 bg-white/60 border-b border-gray-200">
+        <div class="flex items-center gap-3">
+          <button id="mobileMenuBtn" class="p-2 rounded-md border">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
+          </button>
+          <div class="font-semibold">Universal AI</div>
+        </div>
+
+        <div class="flex items-center gap-2">
+          <button id="mobileThemeToggle" class="p-2 rounded-md border">
+            <svg class="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 3v1m0 16v1m8.66-10.66l-.7.7M4.05 19.95l-.7-.7M21 12h-1M4 12H3m15.66 4.66l-.7-.7M4.05 4.05l-.7.7"/></svg>
+          </button>
+          <button id="mobileNewChat" class="px-3 py-1 bg-indigo-600 text-white rounded-md text-sm">New</button>
+        </div>
+      </div>
+
+      <!-- Mobile sidebar overlay -->
+      <div id="mobileSidebar" class="mobile-sidebar fixed inset-y-0 left-0 z-40 w-80 bg-white p-4 border-r border-gray-200 overflow-auto md:hidden">
+        <!-- content cloned via script -->
+      </div>
+
+      <!-- Main chat area -->
+      <main class="chat-window bg-transparent flex-1 flex flex-col">
+        <div class="flex-1 overflow-auto p-4" id="messagesWrap" style="min-height:0;">
+          <div id="messages" class="space-y-4 max-w-3xl mx-auto markdown"></div>
+        </div>
+
+        <!-- bottom area -->
+        <div class="input-area bg-white/60 border-t border-gray-200 p-3">
+          <div class="max-w-3xl mx-auto flex items-start gap-2">
+            <div class="flex-1">
+              <div class="flex items-center gap-2 mb-2">
+                <select id="currentSystemSelect" class="text-sm p-1 border rounded">
+                  <option value="__global">Use Global</option>
+                  <option value="__chat">Use Chat-specific</option>
+                </select>
+
+                <button id="openSystemEditor" class="text-sm px-2 py-1 border rounded">Edit System</button>
+
+                <button id="uploadBtn" class="text-sm px-2 py-1 border rounded">Upload</button>
+                <input id="fileInput" type="file" class="hidden" multiple />
+                <button id="imageCreateBtn" class="text-sm px-2 py-1 border rounded">Create Image</button>
+                <button id="startVideoBtn" class="text-sm px-2 py-1 border rounded">Video Call</button>
+                <button id="automationBtn" class="text-sm px-2 py-1 border rounded">Automations</button>
+              </div>
+
+              <textarea id="promptInput" rows="2" placeholder="Type a message, use /image to create, or /download URL to download a file" class="w-full p-3 rounded border text-sm resize-none"></textarea>
+
+              <div class="flex items-center justify-between mt-2">
+                <div class="text-xs text-gray-500">Press Enter to send • Shift+Enter for newline</div>
+                <div class="flex items-center gap-2">
+                  <button id="sendBtn" class="px-4 py-2 bg-indigo-600 text-white rounded">Send</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Video call modal (hidden) -->
+        <div id="videoModal" class="fixed inset-0 hidden z-50 items-center justify-center p-4">
+          <div class="bg-white/90 backdrop-blur rounded-xl w-full max-w-3xl p-4 border">
+            <div class="flex items-center justify-between mb-2">
+              <div class="font-semibold">Live Video</div>
+              <div>
+                <button id="endCallBtn" class="px-3 py-1 bg-red-600 text-white rounded">End</button>
+              </div>
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+              <video id="localVideo" autoplay playsinline class="w-full rounded bg-black"></video>
+              <video id="remoteVideo" autoplay playsinline class="w-full rounded bg-black"></video>
+            </div>
+            <div class="mt-3 text-xs text-gray-500">This is a browser-only demo. For real peer-to-peer calls you need signaling (copy-paste offers supported in this demo).</div>
+            <div class="mt-2 grid grid-cols-3 gap-2">
+              <button id="createOffer" class="px-3 py-1 border rounded">Create Offer</button>
+              <button id="acceptAnswer" class="px-3 py-1 border rounded">Accept Answer</button>
+              <button id="copyLocalSDP" class="px-3 py-1 border rounded">Copy Local SDP</button>
+            </div>
+            <textarea id="sdpArea" rows="4" class="w-full mt-2 p-2 border rounded text-xs" placeholder="Paste remote SDP here..."></textarea>
+          </div>
+        </div>
+
+        <!-- System editor modal -->
+        <div id="systemModal" class="fixed inset-0 hidden z-50 items-center justify-center p-4">
+          <div class="bg-white/95 rounded-lg w-full max-w-2xl p-4 border">
+            <div class="flex items-center justify-between mb-2">
+              <div class="font-semibold">System Prompt Editor</div>
+              <div>
+                <button id="closeSystem" class="px-3 py-1 border rounded">Close</button>
+              </div>
+            </div>
+            <textarea id="systemEditorArea" rows="6" class="w-full p-2 border rounded" placeholder="System prompt for this chat..."></textarea>
+            <div class="flex gap-2 mt-3">
+              <button id="saveSystem" class="px-3 py-1 bg-indigo-600 text-white rounded">Save</button>
+              <button id="saveSystemGlobal" class="px-3 py-1 bg-gray-300 rounded">Save as Global</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Automation modal -->
+        <div id="automationModal" class="fixed inset-0 hidden z-50 items-center justify-center p-4">
+          <div class="bg-white/95 rounded-lg w-full max-w-2xl p-4 border">
+            <div class="flex items-center justify-between mb-2">
+              <div class="font-semibold">Automations</div>
+              <div>
+                <button id="closeAutomation" class="px-3 py-1 border rounded">Close</button>
+              </div>
+            </div>
+
+            <div id="automationList" class="space-y-2"></div>
+
+            <div class="mt-3 border-t pt-3">
+              <div class="text-sm font-medium">Create Automation</div>
+              <div class="grid grid-cols-1 gap-2 mt-2">
+                <input id="automationTrigger" placeholder="Trigger keyword (e.g. invoice ready)" class="p-2 border rounded" />
+                <select id="automationAction" class="p-2 border rounded">
+                  <option value="send_message">Send Message</option>
+                  <option value="open_url">Open URL</option>
+                  <option value="download_url">Download URL</option>
+                </select>
+                <input id="automationActionParam" placeholder="Action param (message text or URL)" class="p-2 border rounded" />
+                <div class="flex gap-2">
+                  <button id="addAutomation" class="px-3 py-1 bg-green-600 text-white rounded">Add</button>
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+      </main>
+    </div>
+  </div>
+
+  <!-- Script must be placed ONLY at the very end of body -->
+  <script>
+  (function () {
+    'use strict';
+    // Defensive: ensure required globals are present
+    if (!window.marked || !window.hljs) {
+      console.error('Missing dependencies: marked or highlight.js');
+    }
+
+    // Utility helpers
+    const $ = (sel, root = document) => root.querySelector(sel);
+    const $$ = (sel, root = document) => Array.from((root || document).querySelectorAll(sel));
+    const safeJSON = (s, fallback = null) => { try { return JSON.parse(s); } catch (e) { return fallback; } };
+
+    // LocalStorage keys
+    const LS = {
+      API_KEY: 'uaic_api_key_v1',
+      MODEL: 'uaic_model_v1',
+      CHATS: 'uaic_chats_v1',
+      THEME: 'uaic_theme_v1',
+      GLOBAL_SYSTEM: 'uaic_global_system_v1',
+      AUTOMATIONS: 'uaic_automations_v1'
+    };
+
+    // App state
+    const state = {
+      apiKey: '',
+      model: 'deepseek/deepseek-r1:free',
+      chats: [], // {id, title, system, messages: [{role,content,meta}], created}
+      currentChatId: null,
+      theme: 'light',
+      streamingController: null,
+      pc: null, // RTCPeerConnection for video demo
+      automations: []
+    };
+
+    // DOM elements
+    const loading = document.getElementById('loading');
+    const app = document.getElementById('app');
+    const chatList = document.getElementById('chatList');
+    const messagesEl = document.getElementById('messages');
+    const messagesWrap = document.getElementById('messagesWrap');
+    const apiKeyInput = document.getElementById('apiKey');
+    const modelInput = document.getElementById('modelName');
+    const globalSystemInput = document.getElementById('globalSystem');
+    const saveSettingsBtn = document.getElementById('saveSettings');
+    const clearStorageBtn = document.getElementById('clearStorage');
+    const newChatBtn = document.getElementById('newChatBtn');
+    const sendBtn = document.getElementById('sendBtn');
+    const promptInput = document.getElementById('promptInput');
+    const toggleThemeBtn = document.getElementById('toggleTheme');
+    const themeIcon = document.getElementById('themeIcon');
+    const mobileThemeToggle = document.getElementById('mobileThemeToggle');
+    const mobileMenuBtn = document.getElementById('mobileMenuBtn');
+    const mobileSidebar = document.getElementById('mobileSidebar');
+    const mobileNewChat = document.getElementById('mobileNewChat');
+    const mobileMenuBtnEl = document.getElementById('mobileMenuBtn');
+    const newChatMobileBtn = document.getElementById('mobileNewChat');
+    const messagesWrapEl = messagesWrap;
+    const openSystemEditorBtn = document.getElementById('openSystemEditor');
+    const systemModal = document.getElementById('systemModal');
+    const systemEditorArea = document.getElementById('systemEditorArea');
+    const saveSystemBtn = document.getElementById('saveSystem');
+    const saveSystemGlobalBtn = document.getElementById('saveSystemGlobal');
+    const closeSystemBtn = document.getElementById('closeSystem');
+    const currentSystemSelect = document.getElementById('currentSystemSelect');
+    const uploadBtn = document.getElementById('uploadBtn');
+    const fileInput = document.getElementById('fileInput');
+    const imageCreateBtn = document.getElementById('imageCreateBtn');
+    const startVideoBtn = document.getElementById('startVideoBtn');
+    const videoModal = document.getElementById('videoModal');
+    const localVideo = document.getElementById('localVideo');
+    const remoteVideo = document.getElementById('remoteVideo');
+    const createOfferBtn = document.getElementById('createOffer');
+    const acceptAnswerBtn = document.getElementById('acceptAnswer');
+    const copyLocalSDPBtn = document.getElementById('copyLocalSDP');
+    const sdpArea = document.getElementById('sdpArea');
+    const endCallBtn = document.getElementById('endCallBtn');
+    const automationBtn = document.getElementById('automationBtn');
+    const automationModal = document.getElementById('automationModal');
+    const automationListEl = document.getElementById('automationList');
+    const addAutomationBtn = document.getElementById('addAutomation');
+    const automationTrigger = document.getElementById('automationTrigger');
+    const automationAction = document.getElementById('automationAction');
+    const automationActionParam = document.getElementById('automationActionParam');
+    const importBtn = document.getElementById('importBtn');
+    const exportBtn = document.getElementById('exportBtn');
+
+    // Initialization & storage
+    function loadFromStorage() {
+      state.apiKey = localStorage.getItem(LS.API_KEY) || '';
+      state.model = localStorage.getItem(LS.MODEL) || state.model;
+      state.theme = localStorage.getItem(LS.THEME) || 'light';
+      const chatsRaw = localStorage.getItem(LS.CHATS);
+      state.chats = chatsRaw ? safeJSON(chatsRaw, []) : [];
+      state.automations = safeJSON(localStorage.getItem(LS.AUTOMATIONS), []) || [];
+      globalSystemInput.value = localStorage.getItem(LS.GLOBAL_SYSTEM) || '';
+      apiKeyInput.value = state.apiKey;
+      modelInput.value = state.model;
+      updateThemeUI();
+    }
+
+    function saveToStorage(key, value) {
+      localStorage.setItem(key, value);
+    }
+
+    function persistChats() {
+      saveToStorage(LS.CHATS, JSON.stringify(state.chats));
+    }
+
+    function persistAutomations() {
+      saveToStorage(LS.AUTOMATIONS, JSON.stringify(state.automations));
+    }
+
+    // Chat utilities
+    function createChat(title = 'New Chat') {
+      const id = 'chat_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
+      const chat = { id, title, system: '', messages: [], created: Date.now() };
+      state.chats.unshift(chat);
+      persistChats();
+      renderChatList();
+      setCurrentChat(id);
+      return chat;
+    }
+
+    function deleteChat(id) {
+      const idx = state.chats.findIndex(c => c.id === id);
+      if (idx >= 0) {
+        state.chats.splice(idx, 1);
+        persistChats();
+        if (state.currentChatId === id) {
+          if (state.chats.length) setCurrentChat(state.chats[0].id);
+          else {
+            state.currentChatId = null;
+            messagesEl.innerHTML = '';
+          }
+        } else {
+          renderChatList();
+        }
+      }
+    }
+
+    function renameChat(id, newTitle) {
+      const chat = state.chats.find(c => c.id === id);
+      if (chat) {
+        chat.title = newTitle;
+        persistChats();
+        renderChatList();
+      }
+    }
+
+    function getCurrentChat() {
+      return state.chats.find(c => c.id === state.currentChatId);
+    }
+
+    function setCurrentChat(id) {
+      state.currentChatId = id;
+      renderChatList();
+      renderMessages();
+      // set system select
+      const chat = getCurrentChat();
+      if (chat && chat.system) currentSystemSelect.value = '__chat';
+      else currentSystemSelect.value = '__global';
+    }
+
+    // Rendering
+    function renderChatList() {
+      chatList.innerHTML = '';
+      state.chats.forEach(chat => {
+        const el = document.createElement('div');
+        el.className = 'p-2 rounded hover:bg-gray-50 flex items-center justify-between';
+        if (chat.id === state.currentChatId) el.classList.add('bg-indigo-50');
+        el.innerHTML = \`
+          <div class="flex items-center gap-3">
+            <div class="w-8 h-8 rounded bg-gradient-to-br from-indigo-400 to-purple-500 flex items-center justify-center text-white text-sm font-semibold">\${chat.title.slice(0,2).toUpperCase()}</div>
+            <div>
+              <div class="font-medium text-sm truncate">\${escapeHtml(chat.title)}</div>
+              <div class="text-xs text-gray-500">\${new Date(chat.created).toLocaleString()}</div>
+            </div>
+          </div>
+          <div class="flex items-center gap-2">
+            <button class="renameBtn text-xs px-2 py-1 border rounded" data-id="\${chat.id}">Rename</button>
+            <button class="delBtn text-xs px-2 py-1 border rounded" data-id="\${chat.id}">Delete</button>
+          </div>
+        \`;
+        el.querySelector('.renameBtn').addEventListener('click', () => {
+          const t = prompt('Rename chat', chat.title);
+          if (t && t.trim()) renameChat(chat.id, t.trim());
+        });
+        el.querySelector('.delBtn').addEventListener('click', () => {
+          if (confirm('Delete this chat?')) deleteChat(chat.id);
+        });
+        el.addEventListener('click', (e) => {
+          if (e.target.classList.contains('delBtn') || e.target.classList.contains('renameBtn')) return;
+          setCurrentChat(chat.id);
+          // hide mobile sidebar
+          mobileSidebar.classList.remove('open');
+        });
+        chatList.appendChild(el);
+      });
+      // Update mobile sidebar clone
+      const mobileContent = document.createElement('div');
+      mobileContent.innerHTML = document.querySelector('aside').innerHTML;
+      // keep a few interactive hooks (simple)
+      mobileSidebar.innerHTML = '';
+      mobileSidebar.appendChild(mobileContent);
+      // wire mobile new & theme toggles
+      const mobileNew = mobileSidebar.querySelector('#newChatBtn');
+      if (mobileNew) mobileNew.addEventListener('click', () => createChat());
+    }
+
+    // Escape HTML to avoid injection when rendering titles
+    function escapeHtml(str) {
+      return (str + '').replace(/[&<>"']/g, (m) => ({'&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;'}[m]));
+    }
+
+    // Render messages for current chat
+    function renderMessages() {
+      messagesEl.innerHTML = '';
+      const chat = getCurrentChat();
+      if (!chat) {
+        messagesEl.innerHTML = '<div class="text-center text-gray-500 mt-12">No chat selected. Create a new chat to begin.</div>';
+        return;
+      }
+      chat.messages.forEach((m, idx) => {
+        const wrapper = document.createElement('div');
+        wrapper.className = (m.role === 'user' ? 'flex justify-end' : 'flex justify-start');
+        const bubble = document.createElement('div');
+        bubble.className = 'p-3 rounded-lg max-w-xl shadow-sm';
+        bubble.style.whiteSpace = 'pre-wrap';
+        if (m.role === 'user') {
+          bubble.classList.add('msg-user');
+        } else {
+          bubble.classList.add('msg-ai');
+        }
+        // content may contain HTML from markdown
+        const html = renderMarkdownSafe(m.content || '');
+        bubble.innerHTML = html;
+        wrapper.appendChild(bubble);
+
+        // Meta actions for message (copy)
+        const meta = document.createElement('div');
+        meta.className = 'text-xs text-gray-400 mt-1';
+        meta.innerHTML = '<button class="copyBtn text-xs">Copy</button>';
+        meta.querySelector('.copyBtn').addEventListener('click', () => {
+          navigator.clipboard?.writeText(m.content || '').then(()=> alert('Copied to clipboard')).catch(()=>alert('Copy failed'));
+        });
+        wrapper.appendChild(meta);
+
+        messagesEl.appendChild(wrapper);
+      });
+      // scroll to bottom
+      setTimeout(() => messagesWrapEl.scrollTop = messagesWrapEl.scrollHeight, 50);
+      // highlight code blocks in view
+      $$('pre code', messagesEl).forEach((block) => {
+        try { hljs.highlightElement(block); } catch (e) {}
+      });
+    }
+
+    // Render markdown to HTML safely
+    function renderMarkdownSafe(md) {
+      try {
+        const html = marked.parse(md, {
+          breaks: true,
+          gfm: true,
+          highlight: function(code, lang) {
+            try {
+              if (lang && hljs.getLanguage(lang)) {
+                return hljs.highlight(code, {language:lang}).value;
+              } else {
+                return hljs.highlightAuto(code).value;
+              }
+            } catch (e) {
+              return code;
+            }
+          }
+        });
+        return html;
+      } catch (e) {
+        return '<pre>' + escapeHtml(md) + '</pre>';
+      }
+    }
+
+    // Add message to current chat
+    function addMessage(role, content, meta = {}) {
+      const chat = getCurrentChat();
+      if (!chat) {
+        // create a chat automatically
+        const c = createChat('Conversation');
+        state.currentChatId = c.id;
+      }
+      const now = Date.now();
+      const msg = { role, content, meta, ts: now };
+      getCurrentChat().messages.push(msg);
+      persistChats();
+      renderMessages();
+      runAutomationsForMessage(msg);
+    }
+
+    // Automations
+    function renderAutomations() {
+      automationListEl.innerHTML = '';
+      state.automations.forEach((a, idx) => {
+        const div = document.createElement('div');
+        div.className = 'p-2 border rounded flex items-center justify-between';
+        div.innerHTML = \`<div>\${escapeHtml(a.trigger)} → \${escapeHtml(a.action)} (\${escapeHtml(a.param)})</div><div><button data-idx="\${idx}" class="delA px-2 py-1 border rounded text-xs">Del</button></div>\`;
+        div.querySelector('.delA').addEventListener('click', () => {
+          state.automations.splice(idx,1); persistAutomations(); renderAutomations();
+        });
+        automationListEl.appendChild(div);
+      });
+    }
+
+    function runAutomationsForMessage(msg) {
+      if (!msg || !msg.content) return;
+      state.automations.forEach(a => {
+        try {
+          if (msg.content.toLowerCase().includes(a.trigger.toLowerCase())) {
+            // perform action
+            if (a.action === 'send_message') {
+              addMessage('user', a.param);
+              // immediately send to AI
+              handleSend(a.param);
+            } else if (a.action === 'open_url') {
+              window.open(a.param, '_blank');
+            } else if (a.action === 'download_url') {
+              downloadURL(a.param);
+            }
+          }
+        } catch (e) {
+          console.error('Automation failed', e);
+        }
+      });
+    }
+
+    // Download URL helper
+    async function downloadURL(url) {
+      try {
+        const res = await fetch(url);
+        if (!res.ok) throw new Error('Failed to fetch');
+        const blob = await res.blob();
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        const name = (url.split('/').pop() || 'download');
+        a.download = name;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+      } catch (e) {
+        alert('Download failed: ' + e.message);
+      }
+    }
+
+    // OpenRouter streaming handler
+    async function streamChatCompletion(messages, opts = {}) {
+      // messages: [{role, content}]
+      const apiKey = state.apiKey || apiKeyInput.value || '';
+      if (!apiKey) {
+        alert('Please set your OpenRouter API key in Settings.');
+        return { error: 'no_api_key' };
+      }
+
+      const url = 'https://openrouter.ai/api/v1/chat/completions';
+      const payload = {
+        model: state.model || modelInput.value || 'deepseek/deepseek-r1:free',
+        messages: messages.map(m => ({ role: m.role, content: m.content })),
+        stream: true,
+        max_tokens: 1024
+      };
+
+      // Abort previous stream if any
+      if (state.streamingController) {
+        try { state.streamingController.abort(); } catch(_) {}
+      }
+      const controller = new AbortController();
+      state.streamingController = controller;
+
+      try {
+        const res = await fetch(url, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + apiKey
+          },
+          body: JSON.stringify(payload),
+          signal: controller.signal
+        });
+
+        if (!res.ok) {
+          const text = await res.text();
+          throw new Error('API error: ' + res.status + ' ' + text.slice(0,400));
+        }
+
+        // detect content-type
+        const ct = res.headers.get('content-type') || '';
+        // If server uses SSE-like "data: ..." lines, parse them
+        if (ct.includes('text/event-stream') || ct.includes('stream') || true) {
+          const reader = res.body.getReader();
+          const decoder = new TextDecoder();
+          let buffer = '';
+          let done = false;
+          // create an AI message placeholder and append gradually
+          let aiTextSoFar = '';
+          addMessage('assistant', ''); // placeholder
+          // reference to last message
+          const chat = getCurrentChat();
+          const lastMsgIndex = chat.messages.length - 1;
+
+          while (!done) {
+            const { value, done: d } = await reader.read();
+            if (d) { done = true; break; }
+            const chunk = decoder.decode(value, { stream: true });
+            buffer += chunk;
+            // SSE splits by double newline
+            const parts = buffer.split(/\n\n/);
+            // keep last partial
+            buffer = parts.pop();
+            for (const part of parts) {
+              const line = part.trim();
+              if (!line) continue;
+              // lines may be like "data: {json}" or just {json}
+              let data = line;
+              if (line.startsWith('data:')) {
+                data = line.replace(/^data:\s*/, '');
+              }
+              if (data === '[DONE]') {
+                done = true;
+                break;
+              }
+              // Try to parse JSON piece
+              let parsed = safeJSON(data, null);
+              if (parsed && parsed.choices && parsed.choices.length) {
+                // try to extract delta content
+                const delta = parsed.choices[0].delta || {};
+                const tokenText = delta.content || parsed.choices[0].text || '';
+                if (tokenText) {
+                  aiTextSoFar += tokenText;
+                  // Update last assistant message progressively (typing effect is handled below)
+                  chat.messages[lastMsgIndex].content = aiTextSoFar;
+                  persistChats();
+                  renderMessages();
+                }
+              } else {
+                // fallback: data might be raw text
+                try {
+                  // try to find JSON inside
+                  const maybeJson = data.match(/\\{.*\\}$/s);
+                  if (maybeJson) {
+                    parsed = safeJSON(maybeJson[0], null);
+                    if (parsed && parsed.choices && parsed.choices[0]) {
+                      const tokenText = parsed.choices[0].delta?.content || parsed.choices[0].text || '';
+                      if (tokenText) {
+                        aiTextSoFar += tokenText;
+                        chat.messages[lastMsgIndex].content = aiTextSoFar;
+                        persistChats();
+                        renderMessages();
+                      }
+                    }
+                  } else {
+                    // as last fallback, append raw text
+                    aiTextSoFar += data;
+                    chat.messages[lastMsgIndex].content = aiTextSoFar;
+                    persistChats();
+                    renderMessages();
+                  }
+                } catch (e) {
+                  // ignore
+                }
+              }
+            }
+          } // end while
+
+          // Done reading - finalize
+          state.streamingController = null;
+          return { text: aiTextSoFar };
+        } else {
+          // non-streaming JSON response
+          const j = await res.json();
+          const content = (j.choices && j.choices[0] && (j.choices[0].message?.content || j.choices[0].text)) || '';
+          addMessage('assistant', content);
+          return { text: content };
+        }
+      } catch (err) {
+        state.streamingController = null;
+        console.error('Stream error', err);
+        addMessage('assistant', '[Error] ' + (err.message || 'unknown'));
+        return { error: err.message || String(err) };
+      }
+    }
+
+    // Handle sending
+    async function handleSend(rawText) {
+      const text = (rawText !== undefined) ? rawText : (promptInput.value || '');
+      if (!text || !text.trim()) return;
+      promptInput.value = '';
+      // Add user message
+      addMessage('user', text);
+
+      // Build messages array for API
+      const chat = getCurrentChat();
+      const msgs = [];
+
+      // System prompt per chat or global
+      let systemPrompt = '';
+      if (currentSystemSelect.value === '__chat' && chat && chat.system) systemPrompt = chat.system;
+      else systemPrompt = (localStorage.getItem(LS.GLOBAL_SYSTEM) || '');
+
+      if (systemPrompt) msgs.push({ role: 'system', content: systemPrompt });
+      // Include last messages (truncate to keep within token budget)
+      chat.messages.forEach(m => {
+        msgs.push({ role: m.role === 'assistant' ? 'assistant' : m.role, content: m.content });
+      });
+
+      // Show temporary "AI is typing" indicator (will be replaced by streaming)
+      // Start streaming
+      const result = await streamChatCompletion(msgs);
+      if (result && result.error) {
+        console.error('API returned error', result.error);
+      } else {
+        // already appended / updated during streaming
+        // final highlight
+        $$('pre code', messagesEl).forEach((block) => {
+          try { hljs.highlightElement(block); } catch (e) {}
+        });
+      }
+    }
+
+    // Input handlers
+    function attachInputHandlers() {
+      sendBtn.addEventListener('click', () => handleSend());
+      promptInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+          e.preventDefault();
+          handleSend();
+        }
+      });
+    }
+
+    // Theme toggling
+    function updateThemeUI() {
+      const theme = localStorage.getItem(LS.THEME) || state.theme;
+      document.body.setAttribute('data-theme', theme);
+      if (theme === 'dark') {
+        document.documentElement.classList.add('dark');
+      } else {
+        document.documentElement.classList.remove('dark');
+      }
+    }
+
+    function toggleTheme() {
+      state.theme = (state.theme === 'light') ? 'dark' : 'light';
+      saveToStorage(LS.THEME, state.theme);
+      updateThemeUI();
+    }
+
+    // System prompt editor
+    function openSystemEditor() {
+      const chat = getCurrentChat();
+      if (currentSystemSelect.value === '__chat' && chat) {
+        systemEditorArea.value = chat.system || '';
+      } else {
+        systemEditorArea.value = localStorage.getItem(LS.GLOBAL_SYSTEM) || '';
+      }
+      systemModal.classList.remove('hidden');
+    }
+    function closeSystemEditor() { systemModal.classList.add('hidden'); }
+    function saveSystemPrompt(asGlobal=false) {
+      const val = systemEditorArea.value || '';
+      if (asGlobal) {
+        localStorage.setItem(LS.GLOBAL_SYSTEM, val);
+        globalSystemInput.value = val;
+      } else {
+        const chat = getCurrentChat();
+        if (chat) { chat.system = val; persistChats(); }
+      }
+      closeSystemEditor();
+    }
+
+    // File upload handling
+    function handleFiles(files) {
+      if (!files || !files.length) return;
+      const arr = Array.from(files);
+      arr.forEach(f => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          // store a reference in chat as base64 (be careful about size)
+          const content = \`[Uploaded file: \${f.name}]\n\n\` + '[File content not displayed]';
+          addMessage('user', content, { filename: f.name });
+        };
+        reader.readAsDataURL(f); // read as data url for possible attachments
+      });
+    }
+
+    // Image creation (placeholder using prompts)
+    async function handleImageCreate() {
+      const prompt = promptInput.value || prompt('Describe the image to create:');
+      if (!prompt) return;
+      // For demonstration: add an image placeholder message
+      addMessage('user', '/image ' + prompt);
+      // If user provided OpenRouter API image generation endpoint, would call here.
+      // For now we simulate generation and add image as data URL placeholder
+      const placeholder = await generatePlaceholderImage(prompt);
+      addMessage('assistant', '![generated image](' + placeholder + ')\n\n*Image generated from prompt: ' + escapeHtml(prompt) + '*');
+    }
+
+    // Simple placeholder image generator (canvas) — returns data URL
+    async function generatePlaceholderImage(text) {
+      const canvas = document.createElement('canvas');
+      canvas.width = 1024;
+      canvas.height = 512;
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = window.getComputedStyle(document.body).getPropertyValue('--ai') || '#f3f4f6';
+      ctx.fillRect(0,0,canvas.width,canvas.height);
+      ctx.fillStyle = '#111827';
+      ctx.font = '28px sans-serif';
+      wrapText(ctx, 'Image Preview: ' + text, 40, 80, 940, 32);
+      return canvas.toDataURL('image/png');
+    }
+    function wrapText(ctx, text, x, y, maxWidth, lineHeight){
+      const words = text.split(' ');
+      let line = '';
+      for (let n = 0; n < words.length; n++) {
+        const testLine = line + words[n] + ' ';
+        const metrics = ctx.measureText(testLine);
+        if (metrics.width > maxWidth && n > 0) {
+          ctx.fillText(line, x, y);
+          line = words[n] + ' ';
+          y += lineHeight;
+        } else {
+          line = testLine;
+        }
+      }
+      ctx.fillText(line, x, y);
+    }
+
+    // Video call demo (getUserMedia + basic peer connection copy-paste)
+    async function openVideoModal() {
+      videoModal.classList.remove('hidden');
+      videoModal.style.display = 'flex';
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+        localVideo.srcObject = stream;
+        // show local also as remote until peer connects
+        remoteVideo.srcObject = stream;
+        // create a peer connection for signaling demonstration
+        state.pc = new RTCPeerConnection();
+        // add tracks
+        stream.getTracks().forEach(track => state.pc.addTrack(track, stream));
+        state.pc.ontrack = (ev) => {
+          remoteVideo.srcObject = ev.streams[0];
+        };
+        // ICE candidate handling: we will embed local SDP in text area for manual copy-paste
+        state.pc.onicecandidate = (e) => {
+          // do nothing, candidates included in SDP in most browsers
+        };
+
+        createOfferBtn.onclick = async () => {
+          const offer = await state.pc.createOffer();
+          await state.pc.setLocalDescription(offer);
+          // display local SDP to copy
+          sdpArea.value = JSON.stringify({ type: state.pc.localDescription.type, sdp: state.pc.localDescription.sdp });
+        };
+
+        acceptAnswerBtn.onclick = async () => {
+          // accept remote SDP pasted in textarea
+          try {
+            const remote = safeJSON(sdpArea.value);
+            if (!remote || !remote.sdp) throw new Error('Invalid SDP');
+            await state.pc.setRemoteDescription(remote);
+            alert('Remote SDP set');
+          } catch (e) { alert('Failed to set remote SDP: ' + e.message); }
+        };
+
+        copyLocalSDPBtn.onclick = () => {
+          navigator.clipboard?.writeText(sdpArea.value).then(()=>alert('Copied')).catch(()=>alert('Copy failed'));
+        };
+
+        endCallBtn.onclick = () => closeVideoModal();
+      } catch (e) {
+        alert('Could not access camera/mic: ' + e.message);
+      }
+    }
+    function closeVideoModal() {
+      videoModal.classList.add('hidden');
+      videoModal.style.display = 'none';
+      if (localVideo.srcObject) {
+        localVideo.srcObject.getTracks().forEach(t => t.stop());
+        localVideo.srcObject = null;
+      }
+      if (remoteVideo.srcObject) {
+        remoteVideo.srcObject.getTracks().forEach(t => t.stop());
+        remoteVideo.srcObject = null;
+      }
+      if (state.pc) {
+        try { state.pc.close(); } catch (e) {}
+        state.pc = null;
+      }
+    }
+
+    // Automation handlers
+    function openAutomationModal() {
+      automationModal.classList.remove('hidden');
+      renderAutomations();
+    }
+    function closeAutomationModal() { automationModal.classList.add('hidden'); }
+
+    // Download/export/import chats
+    function exportChats() {
+      const data = JSON.stringify({ chats: state.chats, global: localStorage.getItem(LS.GLOBAL_SYSTEM) || '' });
+      const blob = new Blob([data], { type: 'application/json' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'uaic_export_' + Date.now() + '.json';
+      document.body.appendChild(a); a.click(); a.remove();
+    }
+    function importChats() {
+      const inp = document.createElement('input');
+      inp.type = 'file';
+      inp.accept = 'application/json';
+      inp.onchange = (e) => {
+        const f = e.target.files[0];
+        if (!f) return;
+        const reader = new FileReader();
+        reader.onload = () => {
+          try {
+            const j = JSON.parse(reader.result);
+            if (Array.isArray(j.chats)) {
+              // merge
+              state.chats = j.chats.concat(state.chats);
+              persistChats();
+              renderChatList();
+              alert('Imported ' + j.chats.length + ' chats.');
+            }
+            if (j.global) {
+              localStorage.setItem(LS.GLOBAL_SYSTEM, j.global);
+              globalSystemInput.value = j.global;
+            }
+          } catch (e) { alert('Import failed: ' + e.message); }
+        };
+        reader.readAsText(f);
+      };
+      inp.click();
+    }
+
+    // UI wiring
+    function wireUI() {
+      newChatBtn.addEventListener('click', () => createChat());
+      mobileNewChat.addEventListener('click', () => createChat());
+      saveSettingsBtn.addEventListener('click', () => {
+        state.apiKey = apiKeyInput.value.trim();
+        state.model = modelInput.value.trim() || state.model;
+        saveToStorage(LS.API_KEY, state.apiKey);
+        saveToStorage(LS.MODEL, state.model);
+        saveToStorage(LS.GLOBAL_SYSTEM, globalSystemInput.value || '');
+        localStorage.setItem(LS.GLOBAL_SYSTEM, globalSystemInput.value || '');
+        alert('Settings saved locally (localStorage).');
+      });
+      clearStorageBtn.addEventListener('click', () => {
+        if (!confirm('Clear stored API key, chats, and settings?')) return;
+        localStorage.removeItem(LS.API_KEY);
+        localStorage.removeItem(LS.MODEL);
+        localStorage.removeItem(LS.CHATS);
+        localStorage.removeItem(LS.GLOBAL_SYSTEM);
+        localStorage.removeItem(LS.THEME);
+        localStorage.removeItem(LS.AUTOMATIONS);
+        location.reload();
+      });
+      toggleThemeBtn.addEventListener('click', toggleTheme);
+      mobileThemeToggle.addEventListener('click', toggleTheme);
+
+      mobileMenuBtn.addEventListener('click', () => {
+        mobileSidebar.classList.toggle('open');
+      });
+
+      openSystemEditorBtn.addEventListener('click', openSystemEditor);
+      closeSystemBtn.addEventListener('click', closeSystemEditor);
+      saveSystemBtn.addEventListener('click', () => saveSystemPrompt(false));
+      saveSystemGlobalBtn.addEventListener('click', () => saveSystemPrompt(true));
+
+      uploadBtn.addEventListener('click', () => fileInput.click());
+      fileInput.addEventListener('change', (e) => handleFiles(e.target.files));
+
+      imageCreateBtn.addEventListener('click', handleImageCreate);
+
+      startVideoBtn.addEventListener('click', openVideoModal);
+
+      automationBtn.addEventListener('click', openAutomationModal);
+      closeAutomation.addEventListener('click', closeAutomationModal);
+
+      addAutomationBtn.addEventListener('click', () => {
+        const t = automationTrigger.value.trim();
+        const a = automationAction.value;
+        const p = automationActionParam.value.trim();
+        if (!t || !a) return alert('Trigger and action required');
+        state.automations.push({ trigger: t, action: a, param: p });
+        persistAutomations();
+        automationTrigger.value = '';
+        automationActionParam.value = '';
+        renderAutomations();
+      });
+
+      importBtn.addEventListener('click', importChats);
+      exportBtn.addEventListener('click', exportChats);
+
+      // Mobile clones: keep basic functionality
+      mobileSidebar.addEventListener('click', (e) => {
+        if (e.target.matches('.delBtn')) {
+          const id = e.target.dataset.id;
+          if (confirm('Delete?')) deleteChat(id);
+        }
+      });
+
+      // Keyboard shortcuts
+      document.addEventListener('keydown', (e) => {
+        if (e.ctrlKey && e.key === 'k') {
+          promptInput.focus();
+          e.preventDefault();
+        }
+      });
+
+      // Theme icon update
+      // (for nicety: swap icon path depending on theme)
+    }
+
+    // Safe escape for when rendering title
+    function escapeHtml(str) {
+      if (!str) return '';
+      return str.replace(/[&<>"']/g, (s) => ({ '&': '&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' })[s]);
+    }
+
+    // Init function
+    function init() {
+      try {
+        loadFromStorage();
+        // If no chats, create a starter chat
+        if (!state.chats.length) {
+          const c = createChat('Welcome');
+          c.messages.push({ role: 'assistant', content: 'Hello — this is your Universal AI chat. Configure your OpenRouter API key in Settings to start streaming responses.' });
+          persistChats();
+        }
+        // set current chat to first
+        state.currentChatId = state.chats[0] && state.chats[0].id;
+        renderChatList();
+        renderMessages();
+        wireUI();
+        attachInputHandlers();
+
+        // Hide loader and show app
+        loading.style.display = 'none';
+        app.classList.remove('hidden');
+
+        // small safety: ensure input bar always visible on mobile by focusing and using sticky bottom
+        promptInput.addEventListener('focus', () => {
+          setTimeout(()=> promptInput.scrollIntoView({behavior:'smooth', block:'center'}), 300);
+        });
+
+        // set fields
+        apiKeyInput.value = state.apiKey || '';
+        modelInput.value = state.model || '';
+        globalSystemInput.value = localStorage.getItem(LS.GLOBAL_SYSTEM) || '';
+
+      } catch (e) {
+        // If anything goes wrong, display an error but keep loader removed
+        loading.style.display = 'none';
+        app.classList.remove('hidden');
+        console.error('Init error', e);
+        alert('Initialization error: ' + e.message);
+      }
+    }
+
+    // Run init after DOM is parsed
+    window.addEventListener('load', init);
+
+    // Expose some helpers for debugging (not necessary but helpful)
+    window.UAIC = {
+      state,
+      createChat,
+      deleteChat,
+      addMessage,
+      streamChatCompletion,
+      downloadURL
+    };
+
+    // Small polyfills and finishing touches handled above
+  })();
+  </script>
+</body>
+</html>
