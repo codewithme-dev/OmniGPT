@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Universal AI Chat - ChatGPT Style</title>
+    <title>Universal AI - Vision & Voice</title>
     
     <script src="https://cdn.tailwindcss.com"></script>
     
@@ -25,8 +25,6 @@
                         gptDark: '#343541',
                         gptSidebar: '#202123',
                         gptInput: '#40414F',
-                        gptUser: '#343541', // Dark mode user
-                        gptBot: '#444654', // Dark mode bot
                     }
                 }
             }
@@ -34,143 +32,110 @@
     </script>
 
     <style>
-        /* Custom Scrollbar */
-        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar { width: 6px; }
         ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: #888; border-radius: 4px; }
-        ::-webkit-scrollbar-thumb:hover { background: #555; }
-
-        /* Typing Cursor */
-        .cursor-blink { animation: blink 1s step-end infinite; }
-        @keyframes blink { 50% { opacity: 0; } }
-
-        /* Mobile Optimization */
-        body, html { height: 100%; overflow: hidden; }
-        
-        /* Markdown Styles */
-        .markdown-body p { margin-bottom: 1rem; }
-        .markdown-body pre { background: #0d1117; padding: 1rem; border-radius: 6px; overflow-x: auto; margin-bottom: 1rem; }
-        .markdown-body code { font-family: 'Courier New', Courier, monospace; }
-        .markdown-body ul { list-style-type: disc; margin-left: 1.5rem; margin-bottom: 1rem; }
-        .markdown-body ol { list-style-type: decimal; margin-left: 1.5rem; margin-bottom: 1rem; }
-        
-        /* Loading Animation */
-        .dot-flashing {
-            position: relative; width: 6px; height: 6px; border-radius: 3px;
-            background-color: #9880ff; color: #9880ff; animation: dot-flashing 1s infinite linear alternate;
-            animation-delay: .5s;
+        ::-webkit-scrollbar-thumb { background: #555; border-radius: 3px; }
+        .markdown-body img { max-width: 100%; border-radius: 8px; margin: 10px 0; }
+        .markdown-body pre { background: #1a1b1e; padding: 1rem; border-radius: 8px; overflow-x: auto; }
+        .typing-dot { animation: jump 1s infinite; }
+        @keyframes jump { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-5px); } }
+        /* Video Pulse */
+        .listening-ring {
+            box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.7);
+            animation: pulse-blue 2s infinite;
         }
-        .dot-flashing::before, .dot-flashing::after {
-            content: ''; display: inline-block; position: absolute; top: 0;
-            width: 6px; height: 6px; border-radius: 3px; background-color: #9880ff; color: #9880ff;
-            animation: dot-flashing 1s infinite alternate;
+        @keyframes pulse-blue {
+            0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.7); }
+            70% { transform: scale(1); box-shadow: 0 0 0 20px rgba(59, 130, 246, 0); }
+            100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(59, 130, 246, 0); }
         }
-        .dot-flashing::before { left: -10px; animation-delay: 0s; }
-        .dot-flashing::after { left: 10px; animation-delay: 1s; }
-        @keyframes dot-flashing { 0% { background-color: #9880ff; } 50%, 100% { background-color: #ebe6ff; } }
     </style>
 </head>
-<body class="bg-white dark:bg-gptDark text-gray-800 dark:text-gray-100 font-sans transition-colors duration-200">
+<body class="bg-white dark:bg-gptDark text-gray-800 dark:text-gray-100 font-sans transition-colors duration-200 overflow-hidden">
 
-    <div id="app-loader" class="fixed inset-0 z-50 flex items-center justify-center bg-gray-900 text-white">
-        <div class="flex flex-col items-center">
-            <i class="fa-solid fa-robot fa-bounce text-4xl mb-4 text-blue-500"></i>
-            <h2 class="text-xl font-bold">Loading AI Interface...</h2>
-        </div>
-    </div>
-
-    <div id="app" class="flex h-[100dvh] hidden">
+    <div id="app" class="flex h-[100dvh] relative">
         
-        <aside id="sidebar" class="fixed inset-y-0 left-0 z-40 w-64 bg-black/90 dark:bg-gptSidebar transform -translate-x-full md:translate-x-0 transition-transform duration-300 flex flex-col border-r border-gray-700">
-            <div class="p-3">
-                <button onclick="createNewChat()" class="w-full flex items-center gap-3 px-3 py-3 border border-white/20 rounded-md hover:bg-white/10 transition-colors text-white text-sm text-left">
+        <aside id="sidebar" class="fixed inset-y-0 left-0 z-40 w-64 bg-black/95 dark:bg-gptSidebar transform -translate-x-full md:translate-x-0 transition-transform duration-300 flex flex-col border-r border-white/10">
+            <div class="p-4">
+                <button onclick="createNewChat()" class="w-full flex items-center gap-3 px-4 py-3 border border-white/20 rounded-lg hover:bg-white/10 text-white text-sm transition-all">
                     <i class="fa-solid fa-plus"></i> New Chat
                 </button>
             </div>
-
-            <div class="flex-1 overflow-y-auto px-3 py-2" id="history-list">
-                </div>
-
-            <div class="p-3 border-t border-white/20 text-white text-sm">
-                <button onclick="toggleSettings()" class="flex items-center gap-3 w-full px-3 py-3 hover:bg-white/10 rounded-md">
+            <div class="flex-1 overflow-y-auto px-2" id="history-list"></div>
+            <div class="p-4 border-t border-white/10 text-white text-sm space-y-2">
+                <button onclick="toggleSettings()" class="flex items-center gap-3 w-full px-3 py-3 hover:bg-white/10 rounded-lg">
                     <i class="fa-solid fa-gear"></i> Settings
-                </button>
-                <button onclick="toggleVideoModal()" class="flex items-center gap-3 w-full px-3 py-3 hover:bg-white/10 rounded-md text-green-400">
-                    <i class="fa-solid fa-video"></i> Live Video Mode
                 </button>
             </div>
         </aside>
 
-        <div id="sidebar-overlay" onclick="toggleSidebar()" class="fixed inset-0 z-30 bg-black/50 hidden md:hidden"></div>
-
         <main class="flex-1 flex flex-col md:ml-64 relative h-full">
             
-            <header class="flex items-center justify-between px-4 py-2 border-b border-gray-200 dark:border-white/10 bg-white dark:bg-gptDark shrink-0">
+            <header class="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-white/10 bg-white dark:bg-gptDark z-10">
                 <div class="flex items-center gap-3">
-                    <button onclick="toggleSidebar()" class="md:hidden text-gray-500 hover:text-gray-800 dark:text-gray-300">
+                    <button onclick="toggleSidebar()" class="md:hidden text-gray-500 dark:text-gray-300">
                         <i class="fa-solid fa-bars text-xl"></i>
                     </button>
                     <div class="flex flex-col">
-                        <span id="current-model-display" class="font-semibold text-sm">GPT-4 (Clone)</span>
-                        <span class="text-xs text-gray-400">Via OpenRouter</span>
+                        <span id="model-display" class="font-bold text-sm">Universal AI</span>
+                        <span class="text-[10px] text-gray-400">Vision & Voice Enabled</span>
                     </div>
                 </div>
-                <div class="flex items-center gap-3">
-                    <button onclick="toggleTheme()" class="text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700 p-2 rounded-lg">
+                <div class="flex gap-4">
+                    <button onclick="toggleVideoMode()" class="text-gray-500 hover:text-blue-500 dark:text-gray-300 transition-colors" title="Live Video Mode">
+                        <i class="fa-solid fa-video text-lg"></i>
+                    </button>
+                    <button onclick="toggleTheme()" class="text-gray-500 dark:text-gray-300">
                         <i id="theme-icon" class="fa-solid fa-moon"></i>
                     </button>
                 </div>
             </header>
 
-            <div id="chat-container" class="flex-1 overflow-y-auto scroll-smooth p-4 pb-32">
-                <div id="welcome-screen" class="h-full flex flex-col items-center justify-center text-center opacity-100">
-                    <div class="bg-white dark:bg-white/10 p-4 rounded-full mb-6">
-                        <i class="fa-solid fa-bolt text-4xl text-yellow-500"></i>
+            <div id="chat-container" class="flex-1 overflow-y-auto p-4 pb-40 scroll-smooth">
+                <div id="welcome-screen" class="h-full flex flex-col items-center justify-center text-center opacity-70">
+                    <div class="w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center mb-6 shadow-lg">
+                        <i class="fa-solid fa-sparkles text-2xl text-white"></i>
                     </div>
-                    <h2 class="text-2xl font-bold mb-2">How can I help you today?</h2>
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-8 w-full max-w-2xl px-4">
-                        <button onclick="setInput('Generate an image of a futuristic city')" class="p-4 border border-gray-200 dark:border-white/20 rounded-lg text-left hover:bg-gray-50 dark:hover:bg-white/5 text-sm">
-                            Generate an image of a futuristic city
+                    <h2 class="text-2xl font-bold mb-2">How can I help you?</h2>
+                    <p class="text-sm mb-8">Generate images, analyze photos, or automate tasks.</p>
+                    
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full max-w-2xl px-4">
+                        <button onclick="setInput('Generate an image of a neon city')" class="p-4 border border-gray-200 dark:border-white/20 rounded-xl text-left hover:bg-gray-50 dark:hover:bg-white/5 text-sm transition-colors">
+                            <i class="fa-solid fa-image text-purple-500 mr-2"></i> Create an image of a neon city
                         </button>
-                        <button onclick="setInput('Download Visual Studio Code for me')" class="p-4 border border-gray-200 dark:border-white/20 rounded-lg text-left hover:bg-gray-50 dark:hover:bg-white/5 text-sm">
-                            Download Visual Studio Code
+                        <button onclick="setInput('Analyze this image')" class="p-4 border border-gray-200 dark:border-white/20 rounded-xl text-left hover:bg-gray-50 dark:hover:bg-white/5 text-sm transition-colors">
+                            <i class="fa-solid fa-eye text-blue-500 mr-2"></i> Upload & Analyze a photo
                         </button>
-                        <button onclick="setInput('Write a python script to parse JSON')" class="p-4 border border-gray-200 dark:border-white/20 rounded-lg text-left hover:bg-gray-50 dark:hover:bg-white/5 text-sm">
-                            Write a Python script
+                        <button onclick="setInput('Download VS Code')" class="p-4 border border-gray-200 dark:border-white/20 rounded-xl text-left hover:bg-gray-50 dark:hover:bg-white/5 text-sm transition-colors">
+                            <i class="fa-solid fa-download text-green-500 mr-2"></i> Automation: Download VS Code
                         </button>
-                        <button onclick="setInput('Open YouTube in a new tab')" class="p-4 border border-gray-200 dark:border-white/20 rounded-lg text-left hover:bg-gray-50 dark:hover:bg-white/5 text-sm">
-                            Open YouTube
+                        <button onclick="setInput('Open YouTube')" class="p-4 border border-gray-200 dark:border-white/20 rounded-xl text-left hover:bg-gray-50 dark:hover:bg-white/5 text-sm transition-colors">
+                            <i class="fa-brands fa-youtube text-red-500 mr-2"></i> Automation: Open YouTube
                         </button>
                     </div>
                 </div>
-                <div id="messages-list" class="max-w-3xl mx-auto space-y-6"></div>
+                <div id="messages-list" class="max-w-3xl mx-auto space-y-6 pb-4"></div>
             </div>
 
-            <div class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-white via-white to-transparent dark:from-gptDark dark:via-gptDark pt-10 pb-6 px-4">
+            <div class="absolute bottom-0 left-0 right-0 bg-white/90 dark:bg-gptDark/90 backdrop-blur-sm pt-2 pb-6 px-4 z-20 border-t border-transparent dark:border-white/5">
                 <div class="max-w-3xl mx-auto">
-                    <div id="file-preview" class="hidden mb-2 p-2 bg-gray-100 dark:bg-gray-700 rounded-md flex items-center justify-between text-xs">
-                        <span id="file-name" class="truncate max-w-[200px]"></span>
-                        <button onclick="clearFile()" class="text-red-400 hover:text-red-500"><i class="fa-solid fa-times"></i></button>
+                    <div id="attachment-preview" class="hidden mb-3 p-2 bg-gray-100 dark:bg-gray-700 rounded-lg inline-flex items-center gap-3 relative group">
+                        <img id="img-preview" class="h-12 w-12 object-cover rounded-md hidden">
+                        <div id="file-info" class="text-xs truncate max-w-[150px]"></div>
+                        <button onclick="clearAttachment()" class="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs shadow-md"><i class="fa-solid fa-times"></i></button>
                     </div>
 
-                    <div class="relative flex items-end w-full p-3 bg-white dark:bg-gptInput border border-gray-200 dark:border-black/10 rounded-xl shadow-lg focus-within:ring-2 focus-within:ring-blue-500">
-                        <button onclick="triggerFileUpload()" class="p-2 mr-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
-                            <i class="fa-solid fa-paperclip text-lg"></i>
+                    <div class="relative flex items-end w-full p-2 bg-white dark:bg-gptInput border border-gray-300 dark:border-black/20 rounded-2xl shadow-lg focus-within:ring-2 focus-within:ring-blue-500 transition-shadow">
+                        <button onclick="document.getElementById('file-upload').click()" class="p-3 text-gray-400 hover:text-blue-500 transition-colors" title="Upload Image/File">
+                            <i class="fa-solid fa-paperclip text-xl"></i>
                         </button>
-                        <button onclick="toggleVideoModal()" class="p-2 mr-2 text-gray-400 hover:text-green-500 dark:hover:text-green-400 md:hidden">
-                            <i class="fa-solid fa-video text-lg"></i>
-                        </button>
-                        
-                        <input type="file" id="hidden-file-input" class="hidden" onchange="handleFileSelect(this)">
+                        <input type="file" id="file-upload" class="hidden" accept="image/*,.txt,.js,.py,.html,.json,.md" onchange="handleFile(this)">
 
-                        <textarea id="user-input" rows="1" class="w-full max-h-48 bg-transparent border-0 focus:ring-0 resize-none py-2 text-base scrollbar-hide dark:placeholder-gray-400" placeholder="Message AI..." oninput="autoResize(this)" onkeydown="handleEnter(event)"></textarea>
+                        <textarea id="user-input" rows="1" class="w-full max-h-32 bg-transparent border-0 focus:ring-0 resize-none py-3 px-2 text-base dark:text-white dark:placeholder-gray-400" placeholder="Message Universal AI..." oninput="autoResize(this)" onkeydown="handleEnter(event)"></textarea>
                         
-                        <button id="send-btn" onclick="sendMessage()" class="p-2 ml-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed">
-                            <i class="fa-solid fa-paper-plane"></i>
+                        <button id="send-btn" onclick="sendMessage()" class="p-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 disabled:opacity-50 transition-colors shadow-md">
+                            <i class="fa-solid fa-arrow-up"></i>
                         </button>
-                    </div>
-                    <div class="text-center mt-2 text-xs text-gray-400">
-                        AI can make mistakes. Check important info.
                     </div>
                 </div>
             </div>
@@ -178,190 +143,417 @@
     </div>
 
     <div id="settings-modal" class="fixed inset-0 z-50 hidden flex items-center justify-center bg-black/60 backdrop-blur-sm">
-        <div class="bg-white dark:bg-gptSidebar w-full max-w-md rounded-xl shadow-2xl p-6 m-4 border border-gray-200 dark:border-white/10">
-            <h2 class="text-xl font-bold mb-4 flex items-center gap-2">
-                <i class="fa-solid fa-sliders"></i> Configuration
-            </h2>
-            
+        <div class="bg-white dark:bg-gptSidebar w-full max-w-md rounded-2xl shadow-2xl p-6 m-4 animate-fadeIn">
+            <h2 class="text-xl font-bold mb-4">Settings</h2>
             <div class="space-y-4">
                 <div>
-                    <label class="block text-sm font-medium mb-1">OpenRouter API Key</label>
-                    <input type="password" id="api-key-input" class="w-full p-2 rounded bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-blue-500 outline-none" placeholder="sk-or-...">
-                    <p class="text-xs text-gray-500 mt-1">Key is stored locally in your browser.</p>
+                    <label class="block text-xs font-uppercase text-gray-500 mb-1">OpenRouter API Key</label>
+                    <input type="password" id="api-key" class="w-full p-3 rounded-lg bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 focus:border-blue-500 outline-none transition-all" placeholder="sk-or-...">
                 </div>
-                
                 <div>
-                    <label class="block text-sm font-medium mb-1">Model ID</label>
-                    <input type="text" id="model-input" class="w-full p-2 rounded bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 outline-none" placeholder="deepseek/deepseek-r1:free">
-                </div>
-
-                <div>
-                    <label class="block text-sm font-medium mb-1">System Prompt</label>
-                    <textarea id="system-prompt" rows="3" class="w-full p-2 rounded bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 outline-none text-sm" placeholder="You are a helpful AI assistant..."></textarea>
+                    <label class="block text-xs font-uppercase text-gray-500 mb-1">Model (Supports Vision: google/gemini-pro-vision)</label>
+                    <input type="text" id="model-id" class="w-full p-3 rounded-lg bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 outline-none" placeholder="google/gemini-2.0-flash-exp:free">
                 </div>
             </div>
-
             <div class="flex justify-end gap-3 mt-6">
-                <button onclick="toggleSettings()" class="px-4 py-2 rounded text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-white/5">Cancel</button>
-                <button onclick="saveSettings()" class="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700">Save</button>
+                <button onclick="toggleSettings()" class="px-4 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-white/5">Cancel</button>
+                <button onclick="saveSettings()" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Save</button>
             </div>
         </div>
     </div>
 
-    <div id="video-modal" class="fixed inset-0 z-50 hidden bg-black flex flex-col">
-        <div class="absolute top-4 right-4 z-10">
-            <button onclick="toggleVideoModal()" class="bg-red-600 text-white p-3 rounded-full hover:bg-red-700 shadow-lg">
-                <i class="fa-solid fa-phone-slash"></i>
-            </button>
-        </div>
-        
-        <div class="relative flex-1 flex items-center justify-center">
-            <div class="text-center animate-pulse">
-                <div class="w-32 h-32 rounded-full bg-gradient-to-r from-blue-500 to-purple-600 flex items-center justify-center mx-auto mb-4 shadow-[0_0_30px_rgba(59,130,246,0.5)]">
-                    <i class="fa-solid fa-robot text-4xl text-white"></i>
-                </div>
-                <h3 class="text-white text-xl font-light">Listening...</h3>
-                <div class="mt-2 flex justify-center gap-1 h-4">
-                    <div class="w-1 bg-white animate-[bounce_1s_infinite]"></div>
-                    <div class="w-1 bg-white animate-[bounce_1.1s_infinite]"></div>
-                    <div class="w-1 bg-white animate-[bounce_1.2s_infinite]"></div>
-                </div>
-            </div>
+    <div id="video-overlay" class="fixed inset-0 z-50 bg-black hidden flex flex-col items-center justify-center">
+        <button onclick="toggleVideoMode()" class="absolute top-6 right-6 z-50 bg-gray-800/50 p-4 rounded-full text-white hover:bg-red-600 transition-colors backdrop-blur-md">
+            <i class="fa-solid fa-xmark text-xl"></i>
+        </button>
 
-            <div class="absolute bottom-4 right-4 w-32 h-48 bg-gray-800 rounded-lg overflow-hidden border-2 border-white/20 shadow-xl">
-                <video id="local-video" autoplay muted playsinline class="w-full h-full object-cover"></video>
+        <div class="relative w-full h-full flex flex-col items-center justify-center">
+            
+            <video id="live-video" autoplay muted playsinline class="absolute inset-0 w-full h-full object-cover opacity-50"></video>
+            
+            <div class="relative z-10 flex flex-col items-center">
+                <div id="ai-status-orb" class="w-32 h-32 rounded-full bg-white/10 backdrop-blur-xl border border-white/20 flex items-center justify-center shadow-[0_0_50px_rgba(59,130,246,0.5)] transition-all duration-300">
+                    <i class="fa-solid fa-microphone text-4xl text-white"></i>
+                </div>
+                <p id="voice-status" class="mt-8 text-white text-xl font-light tracking-wide animate-pulse">Listening...</p>
+                <div id="voice-response-text" class="mt-4 px-6 py-2 bg-black/50 rounded-lg text-white/90 max-w-md text-center text-sm hidden"></div>
             </div>
-        </div>
-        
-        <div class="bg-gray-900 p-6 text-center text-gray-400 text-sm">
-            <p><i class="fa-solid fa-microphone mr-2"></i> Voice Input Active (Simulation)</p>
         </div>
     </div>
 
     <script>
-        // --- CONSTANTS & CONFIG ---
-        const DEFAULT_MODEL = "deepseek/deepseek-r1:free";
-        const API_URL = "https://openrouter.ai/api/v1/chat/completions";
-
-        // --- STATE MANAGEMENT ---
+        // --- CONFIG & STATE ---
+        const DEFAULT_MODEL = "google/gemini-2.0-flash-exp:free"; // Good for free vision
         let state = {
-            apiKey: localStorage.getItem("gpt_apiKey") || "",
+            apiKey: localStorage.getItem("gpt_key") || "",
             model: localStorage.getItem("gpt_model") || DEFAULT_MODEL,
-            systemPrompt: localStorage.getItem("gpt_systemPrompt") || "You are a helpful, expert AI assistant. If asked to generate an image, describe it in detail but mention you cannot render pixels directly. If asked to download/open software, provide a direct link or Javascript trigger.",
             chats: JSON.parse(localStorage.getItem("gpt_chats") || "[]"),
             currentChatId: null,
-            theme: localStorage.getItem("gpt_theme") || "dark",
-            attachedFile: null // {name, content}
+            attachment: null, // { type: 'image'|'text', content: 'base64', name: '' }
+            isListening: false
         };
 
         // --- DOM ELEMENTS ---
         const els = {
-            app: document.getElementById('app'),
-            loader: document.getElementById('app-loader'),
-            sidebar: document.getElementById('sidebar'),
-            overlay: document.getElementById('sidebar-overlay'),
-            chatContainer: document.getElementById('messages-list'),
-            welcomeScreen: document.getElementById('welcome-screen'),
             input: document.getElementById('user-input'),
-            historyList: document.getElementById('history-list'),
-            filePreview: document.getElementById('file-preview'),
-            fileName: document.getElementById('file-name'),
-            localVideo: document.getElementById('local-video')
+            chatList: document.getElementById('messages-list'),
+            preview: document.getElementById('attachment-preview'),
+            imgPreview: document.getElementById('img-preview'),
+            fileInfo: document.getElementById('file-info'),
+            videoOverlay: document.getElementById('video-overlay'),
+            video: document.getElementById('live-video'),
+            orb: document.getElementById('ai-status-orb'),
+            statusText: document.getElementById('voice-status'),
+            subtitle: document.getElementById('voice-response-text')
         };
 
-        // --- INITIALIZATION ---
-        window.addEventListener('DOMContentLoaded', () => {
-            applyTheme();
-            renderHistory();
+        // --- INIT ---
+        window.onload = () => {
+            const isDark = localStorage.getItem('theme') === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches);
+            if(isDark) document.documentElement.classList.add('dark');
             
-            // Setup Highlight.js
-            hljs.highlightAll();
+            if (state.chats.length === 0) createNewChat();
+            else loadChat(state.chats[0].id);
+            renderHistory();
+        };
 
-            // Simulate loading
-            setTimeout(() => {
-                els.loader.classList.add('hidden');
-                els.app.classList.remove('hidden');
-                
-                if (state.chats.length > 0) {
-                    loadChat(state.chats[0].id);
-                } else {
-                    createNewChat();
-                }
-            }, 800);
-        });
-
-        // --- THEME ENGINE ---
-        function toggleTheme() {
-            state.theme = state.theme === 'dark' ? 'light' : 'dark';
-            localStorage.setItem("gpt_theme", state.theme);
-            applyTheme();
-        }
-
-        function applyTheme() {
-            const html = document.documentElement;
-            const icon = document.getElementById('theme-icon');
-            if (state.theme === 'dark') {
-                html.classList.add('dark');
-                icon.className = "fa-solid fa-sun";
-            } else {
-                html.classList.remove('dark');
-                icon.className = "fa-solid fa-moon";
-            }
-        }
-
-        // --- SIDEBAR LOGIC ---
-        function toggleSidebar() {
-            const isClosed = els.sidebar.classList.contains('-translate-x-full');
-            if (isClosed) {
-                els.sidebar.classList.remove('-translate-x-full');
-                els.overlay.classList.remove('hidden');
-            } else {
-                els.sidebar.classList.add('-translate-x-full');
-                els.overlay.classList.add('hidden');
-            }
-        }
-
-        // --- CHAT MANAGEMENT ---
+        // --- CORE CHAT LOGIC ---
         function createNewChat() {
-            const newChat = {
-                id: Date.now().toString(),
-                title: "New Chat",
-                messages: []
-            };
-            state.chats.unshift(newChat);
+            const chat = { id: Date.now().toString(), title: "New Chat", messages: [] };
+            state.chats.unshift(chat);
+            loadChat(chat.id);
             saveChats();
-            loadChat(newChat.id);
-            if (window.innerWidth < 768) toggleSidebar(); // Close sidebar on mobile
         }
 
         function loadChat(id) {
             state.currentChatId = id;
             const chat = state.chats.find(c => c.id === id);
-            if (!chat) return;
-
-            // Clear UI
-            els.chatContainer.innerHTML = '';
-            
-            if (chat.messages.length === 0) {
-                els.welcomeScreen.classList.remove('hidden');
-            } else {
-                els.welcomeScreen.classList.add('hidden');
-                chat.messages.forEach(msg => renderMessageHTML(msg));
-            }
-
+            els.chatList.innerHTML = '';
+            document.getElementById('welcome-screen').classList.toggle('hidden', chat.messages.length > 0);
+            chat.messages.forEach(msg => appendMessageToUI(msg));
             renderHistory();
+            if(window.innerWidth < 768) document.getElementById('sidebar').classList.add('-translate-x-full');
         }
 
-        function deleteChat(e, id) {
-            e.stopPropagation();
-            if(!confirm("Delete this chat?")) return;
-            state.chats = state.chats.filter(c => c.id !== id);
-            saveChats();
-            if (state.chats.length > 0) {
-                loadChat(state.chats[0].id);
-            } else {
-                createNewChat();
+        async function sendMessage(overrideText = null) {
+            const text = overrideText || els.input.value.trim();
+            if (!text && !state.attachment) return;
+
+            if (!state.apiKey) {
+                toggleSettings();
+                alert("Please enter OpenRouter API Key first (Free keys available at openrouter.ai)");
+                return;
             }
+
+            // 1. UI Updates
+            els.input.value = '';
+            els.input.style.height = 'auto';
+            document.getElementById('welcome-screen').classList.add('hidden');
+            
+            // 2. Client Side Automation & Tools
+            const automationResult = checkTools(text);
+            if (automationResult) {
+                // If tool handled it (like Image Gen), just show user msg and return
+                appendMessageToUI({ role: 'user', content: text });
+                saveMsg({ role: 'user', content: text });
+                
+                setTimeout(() => {
+                    appendMessageToUI({ role: 'assistant', content: automationResult });
+                    saveMsg({ role: 'assistant', content: automationResult });
+                }, 600);
+                
+                clearAttachment();
+                return;
+            }
+
+            // 3. Prepare Payload (Multimodal)
+            let contentPayload = text;
+            let displayContent = text;
+
+            if (state.attachment) {
+                if (state.attachment.type === 'image') {
+                    // Vision Payload
+                    contentPayload = [
+                        { type: "text", text: text || "Describe this image" },
+                        { type: "image_url", image_url: { url: state.attachment.content } }
+                    ];
+                    displayContent = `![Uploaded Image](${state.attachment.content})\n\n${text}`;
+                } else {
+                    // Text File Payload
+                    const fileMsg = `\n\n[File: ${state.attachment.name}]\n\`\`\`\n${state.attachment.content}\n\`\`\``;
+                    contentPayload = text + fileMsg;
+                    displayContent = text + fileMsg;
+                }
+            }
+
+            const userMsg = { role: 'user', content: displayContent }; // Stored for history
+            appendMessageToUI(userMsg);
+            saveMsg(userMsg);
+
+            // 4. API Request
+            const tempId = 'ai-' + Date.now();
+            appendLoadingIndicator(tempId);
+            clearAttachment();
+
+            try {
+                // Construct full history for API context (Limit to last 10 to save tokens)
+                const currentChat = state.chats.find(c => c.id === state.currentChatId);
+                const apiMessages = currentChat.messages.slice(-10).map(m => {
+                    // Convert history back to API format if needed (simplified here)
+                    return { role: m.role, content: m.content };
+                });
+
+                // Replace last message with the properly formatted payload
+                apiMessages[apiMessages.length - 1] = { role: 'user', content: contentPayload };
+
+                const resp = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${state.apiKey}`,
+                        'Content-Type': 'application/json',
+                        'HTTP-Referer': window.location.href,
+                    },
+                    body: JSON.stringify({
+                        model: state.model,
+                        messages: apiMessages,
+                        stream: true
+                    })
+                });
+
+                const reader = resp.body.getReader();
+                const decoder = new TextDecoder();
+                let fullText = "";
+                const responseDiv = document.getElementById(tempId).querySelector('.markdown-body');
+                document.getElementById(tempId).querySelector('.typing-dot').remove();
+
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+                    const chunk = decoder.decode(value);
+                    const lines = chunk.split('\n');
+                    for (const line of lines) {
+                        if (line.startsWith('data: ') && line !== 'data: [DONE]') {
+                            try {
+                                const json = JSON.parse(line.slice(6));
+                                const delta = json.choices[0]?.delta?.content || "";
+                                fullText += delta;
+                                responseDiv.innerHTML = marked.parse(fullText);
+                            } catch(e){}
+                        }
+                    }
+                }
+                
+                // Highlight code blocks
+                hljs.highlightAll();
+                saveMsg({ role: 'assistant', content: fullText });
+                
+                // If in video mode, speak it
+                if (!els.videoOverlay.classList.contains('hidden')) {
+                    speakText(fullText);
+                }
+
+            } catch (err) {
+                document.getElementById(tempId).innerHTML = `<div class="text-red-500">Error: ${err.message}</div>`;
+            }
+        }
+
+        // --- TOOLS & AUTOMATION ---
+        function checkTools(text) {
+            const lower = text.toLowerCase();
+            
+            // 1. IMAGE GENERATION (Pollinations.ai)
+            if (lower.includes("generate image") || lower.includes("create image") || lower.includes("draw")) {
+                const prompt = text.replace(/generate image|create image|draw/gi, "").trim();
+                const imgUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=1024&height=1024&nologo=true&seed=${Math.random()}`;
+                return `Here is your image for "${prompt}":\n\n![Generated Image](${imgUrl})`;
+            }
+
+            // 2. DOWNLOAD AUTOMATION
+            if (lower.includes("download") && (lower.includes("vs code") || lower.includes("software"))) {
+                setTimeout(() => {
+                    const a = document.createElement('a');
+                    a.href = "data:text/plain,Simulated Installer";
+                    a.download = "VSCode_Setup_Mock.exe";
+                    a.click();
+                }, 1000);
+                return "Initializing download for Visual Studio Code... Check your downloads folder.";
+            }
+
+            // 3. OPEN WEBSITE
+            if (lower.startsWith("open ")) {
+                const site = lower.replace("open ", "").trim();
+                let url = site.includes(".") ? "https://" + site : "https://www.google.com/search?q=" + site;
+                if(site.includes("youtube")) url = "https://www.youtube.com";
+                setTimeout(() => window.open(url, '_blank'), 1000);
+                return `Opening ${site}...`;
+            }
+
+            return null;
+        }
+
+        // --- ATTACHMENT HANDLING ---
+        function handleFile(input) {
+            const file = input.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const isImage = file.type.startsWith('image/');
+                state.attachment = {
+                    type: isImage ? 'image' : 'text',
+                    content: e.target.result, // DataURL
+                    name: file.name
+                };
+
+                // UI Update
+                els.preview.classList.remove('hidden');
+                els.preview.classList.add('flex');
+                els.fileInfo.textContent = file.name;
+                
+                if (isImage) {
+                    els.imgPreview.src = e.target.result;
+                    els.imgPreview.classList.remove('hidden');
+                } else {
+                    els.imgPreview.classList.add('hidden');
+                }
+            };
+            
+            if (file.type.startsWith('image/')) reader.readAsDataURL(file);
+            else reader.readAsText(file);
+        }
+
+        function clearAttachment() {
+            state.attachment = null;
+            els.preview.classList.add('hidden');
+            els.preview.classList.remove('flex');
+            document.getElementById('file-upload').value = '';
+        }
+
+        // --- VIDEO / VOICE MODE ---
+        let recognition;
+        
+        function toggleVideoMode() {
+            const overlay = els.videoOverlay;
+            const isHidden = overlay.classList.contains('hidden');
+
+            if (isHidden) {
+                // START MODE
+                overlay.classList.remove('hidden');
+                navigator.mediaDevices.getUserMedia({ video: true, audio: false })
+                    .then(stream => els.video.srcObject = stream)
+                    .catch(e => console.error("Camera error", e));
+                
+                startListening();
+            } else {
+                // STOP MODE
+                overlay.classList.add('hidden');
+                const stream = els.video.srcObject;
+                if(stream) stream.getTracks().forEach(t => t.stop());
+                stopListening();
+                window.speechSynthesis.cancel();
+            }
+        }
+
+        function startListening() {
+            if (!('webkitSpeechRecognition' in window)) {
+                alert("Speech recognition not supported in this browser.");
+                return;
+            }
+            
+            recognition = new webkitSpeechRecognition();
+            recognition.continuous = false;
+            recognition.lang = 'en-US';
+            recognition.interimResults = false;
+
+            recognition.onstart = () => {
+                els.orb.classList.add('listening-ring');
+                els.statusText.innerText = "Listening...";
+            };
+
+            recognition.onend = () => {
+                els.orb.classList.remove('listening-ring');
+                // If we are still in video mode and not speaking, restart listening
+                if (!els.videoOverlay.classList.contains('hidden') && !window.speechSynthesis.speaking) {
+                    // Slight delay to prevent instant loop
+                    // setTimeout(() => recognition.start(), 1000);
+                    els.statusText.innerText = "Tap to speak again (Auto-loop disabled for safety)";
+                }
+            };
+
+            recognition.onresult = (event) => {
+                const text = event.results[0][0].transcript;
+                els.statusText.innerText = "Thinking...";
+                sendMessage(text);
+            };
+
+            recognition.start();
+        }
+
+        function stopListening() {
+            if(recognition) recognition.stop();
+        }
+
+        function speakText(text) {
+            window.speechSynthesis.cancel();
+            
+            // Clean markdown for speech
+            const cleanText = text.replace(/[*#`\[\]]/g, '');
+            const utterance = new SpeechSynthesisUtterance(cleanText);
+            
+            utterance.onstart = () => {
+                els.orb.classList.add('animate-pulse', 'bg-blue-500');
+                els.statusText.innerText = "Speaking...";
+                els.subtitle.classList.remove('hidden');
+                els.subtitle.innerText = cleanText.substring(0, 100) + "...";
+            };
+
+            utterance.onend = () => {
+                els.orb.classList.remove('animate-pulse', 'bg-blue-500');
+                els.subtitle.classList.add('hidden');
+                // Resume listening after speaking
+                if(!els.videoOverlay.classList.contains('hidden')) startListening();
+            };
+
+            window.speechSynthesis.speak(utterance);
+        }
+
+        // --- HELPER FUNCTIONS ---
+        function appendMessageToUI(msg) {
+            const div = document.createElement('div');
+            const isUser = msg.role === 'user';
+            div.className = `flex gap-4 ${isUser ? 'flex-row-reverse' : ''}`;
+            
+            const avatar = isUser 
+                ? `<div class="w-8 h-8 rounded bg-gray-200 dark:bg-gray-600 flex items-center justify-center shrink-0"><i class="fa-solid fa-user"></i></div>`
+                : `<div class="w-8 h-8 rounded bg-gradient-to-tr from-blue-500 to-purple-500 flex items-center justify-center shrink-0 text-white"><i class="fa-solid fa-robot"></i></div>`;
+
+            div.innerHTML = `
+                ${avatar}
+                <div class="max-w-[85%] ${isUser ? 'bg-gray-100 dark:bg-[#444654] rounded-2xl rounded-tr-sm px-4 py-2' : 'w-full'}">
+                    <div class="markdown-body prose dark:prose-invert text-sm">${marked.parse(msg.content)}</div>
+                </div>
+            `;
+            els.chatList.appendChild(div);
+            scrollToBottom();
+        }
+
+        function appendLoadingIndicator(id) {
+            const div = document.createElement('div');
+            div.id = id;
+            div.className = "flex gap-4";
+            div.innerHTML = `
+                <div class="w-8 h-8 rounded bg-gradient-to-tr from-blue-500 to-purple-500 flex items-center justify-center shrink-0 text-white"><i class="fa-solid fa-robot"></i></div>
+                <div class="flex items-center"><div class="typing-dot w-2 h-2 bg-gray-400 rounded-full"></div></div>
+                <div class="markdown-body prose dark:prose-invert text-sm w-full"></div>
+            `;
+            els.chatList.appendChild(div);
+            scrollToBottom();
+        }
+
+        function saveMsg(msg) {
+            const chat = state.chats.find(c => c.id === state.currentChatId);
+            chat.messages.push(msg);
+            saveChats();
         }
 
         function saveChats() {
@@ -370,338 +562,62 @@
         }
 
         function renderHistory() {
-            els.historyList.innerHTML = state.chats.map(chat => `
-                <div onclick="loadChat('${chat.id}')" class="group flex items-center justify-between p-3 rounded-md cursor-pointer hover:bg-gray-100 dark:hover:bg-white/5 ${state.currentChatId === chat.id ? 'bg-gray-200 dark:bg-white/10' : ''} mb-1">
-                    <div class="flex items-center gap-3 overflow-hidden">
-                        <i class="fa-regular fa-message text-gray-500"></i>
-                        <span class="text-sm truncate text-gray-700 dark:text-gray-200">${chat.title}</span>
-                    </div>
-                    <button onclick="deleteChat(event, '${chat.id}')" class="text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <i class="fa-solid fa-trash text-xs"></i>
-                    </button>
+            const list = document.getElementById('history-list');
+            list.innerHTML = state.chats.map(c => `
+                <div onclick="loadChat('${c.id}')" class="p-3 rounded-lg cursor-pointer hover:bg-white/10 text-gray-300 text-sm truncate ${c.id === state.currentChatId ? 'bg-white/10 text-white' : ''}">
+                    ${c.messages[0]?.content.substring(0, 30) || "Empty Chat"}
                 </div>
             `).join('');
         }
 
-        // --- MESSAGING ENGINE ---
-        function autoResize(textarea) {
-            textarea.style.height = 'auto';
-            textarea.style.height = textarea.scrollHeight + 'px';
-        }
-
-        function handleEnter(e) {
-            if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                sendMessage();
-            }
-        }
-
-        function setInput(text) {
-            els.input.value = text;
+        function setInput(txt) {
+            els.input.value = txt;
             els.input.focus();
-            autoResize(els.input);
         }
 
-        async function sendMessage() {
-            const text = els.input.value.trim();
-            if (!text && !state.attachedFile) return;
-
-            if (!state.apiKey) {
-                alert("Please set your OpenRouter API Key in Settings first!");
-                toggleSettings();
-                return;
-            }
-
-            // Prepare User Message
-            let fullContent = text;
-            if (state.attachedFile) {
-                fullContent += `\n\n[Attached File Content of ${state.attachedFile.name}]:\n${state.attachedFile.content}`;
-            }
-
-            const userMsg = { role: "user", content: fullContent };
-            
-            // Add to Chat Data
-            const chat = state.chats.find(c => c.id === state.currentChatId);
-            chat.messages.push(userMsg);
-            
-            // Update Title if first message
-            if (chat.messages.length === 1) {
-                chat.title = text.substring(0, 30) || "New Conversation";
-            }
-            saveChats();
-
-            // Render User UI
-            els.welcomeScreen.classList.add('hidden');
-            renderMessageHTML(userMsg);
-            
-            // Check for Automation Triggers (Client-side "Magic")
-            const automationResponse = checkAutomationTriggers(text);
-            
-            // Clear Input
-            els.input.value = '';
-            els.input.style.height = 'auto';
-            clearFile();
-
-            // Placeholder for AI Response
-            const aiMsgId = 'msg-' + Date.now();
-            const aiMsg = { role: "assistant", content: "" }; // Start empty
-            renderMessageHTML(aiMsg, aiMsgId, true); // true = loading state
-
-            // Scroll to bottom
-            const container = document.getElementById('chat-container');
-            container.scrollTop = container.scrollHeight;
-
-            if (automationResponse) {
-                // If automation triggered, simulate AI response immediately
-                setTimeout(() => {
-                    updateStreamedMessage(aiMsgId, automationResponse);
-                    chat.messages.push({ role: "assistant", content: automationResponse });
-                    saveChats();
-                }, 600);
-                return;
-            }
-
-            // API STREAMING CALL
-            try {
-                const response = await fetch(API_URL, {
-                    method: "POST",
-                    headers: {
-                        "Authorization": `Bearer ${state.apiKey}`,
-                        "Content-Type": "application/json",
-                        "HTTP-Referer": window.location.href,
-                        "X-Title": "Universal AI Chat"
-                    },
-                    body: JSON.stringify({
-                        model: state.model,
-                        messages: [
-                            { role: "system", content: state.systemPrompt },
-                            ...chat.messages.map(m => ({ role: m.role, content: m.content }))
-                        ],
-                        stream: true
-                    })
-                });
-
-                if (!response.ok) throw new Error("API Error");
-
-                const reader = response.body.getReader();
-                const decoder = new TextDecoder();
-                let aiContent = "";
-
-                while (true) {
-                    const { done, value } = await reader.read();
-                    if (done) break;
-
-                    const chunk = decoder.decode(value);
-                    const lines = chunk.split("\n");
-                    
-                    for (const line of lines) {
-                        if (line.startsWith("data: ")) {
-                            const jsonStr = line.slice(6);
-                            if (jsonStr === "[DONE]") break;
-                            try {
-                                const json = JSON.parse(jsonStr);
-                                const content = json.choices[0]?.delta?.content || "";
-                                aiContent += content;
-                                updateStreamedMessage(aiMsgId, aiContent);
-                                container.scrollTop = container.scrollHeight;
-                            } catch (e) { console.error("Parse error", e); }
-                        }
-                    }
-                }
-
-                // Final Save
-                chat.messages.push({ role: "assistant", content: aiContent });
-                saveChats();
-
-            } catch (error) {
-                updateStreamedMessage(aiMsgId, "Error: Could not connect to OpenRouter. Check your API Key.");
-                console.error(error);
-            }
-        }
-
-        // --- RENDERERS ---
-        function renderMessageHTML(msg, id = null, isLoading = false) {
-            const isUser = msg.role === 'user';
-            const div = document.createElement('div');
-            div.className = `flex gap-4 p-4 ${isUser ? '' : 'bg-gray-50 dark:bg-[#444654]/30'} rounded-lg`;
-            if (id) div.id = id;
-
-            const avatar = isUser 
-                ? `<div class="w-8 h-8 rounded-sm bg-purple-600 flex items-center justify-center text-white shrink-0"><i class="fa-solid fa-user"></i></div>`
-                : `<div class="w-8 h-8 rounded-sm bg-green-500 flex items-center justify-center text-white shrink-0"><i class="fa-solid fa-robot"></i></div>`;
-
-            // Initial Content
-            let contentHtml = isLoading 
-                ? `<div class="dot-flashing mt-2 ml-2"></div>` 
-                : parseMarkdown(msg.content);
-
-            div.innerHTML = `
-                ${avatar}
-                <div class="flex-1 min-w-0 overflow-hidden prose dark:prose-invert max-w-none text-sm leading-6 markdown-body">
-                    ${contentHtml}
-                </div>
-            `;
-
-            els.chatContainer.appendChild(div);
-        }
-
-        function updateStreamedMessage(id, text) {
-            const el = document.getElementById(id);
-            if (!el) return;
-            const contentArea = el.querySelector('.markdown-body');
-            contentArea.innerHTML = parseMarkdown(text);
-            // Re-highlight code blocks
-            contentArea.querySelectorAll('pre code').forEach((block) => {
-                hljs.highlightElement(block);
-            });
-        }
-
-        function parseMarkdown(text) {
-            // Configure marked for security and breaks
-            marked.setOptions({
-                breaks: true,
-                gfm: true
-            });
-            return DOMPurify.sanitize(marked.parse(text));
-        }
-
-        // --- AUTOMATION & MAGIC FEATURES ---
-
-        function checkAutomationTriggers(text) {
-            const lower = text.toLowerCase();
-            
-            // 1. Download Automation
-            if (lower.includes("download") && (lower.includes("software") || lower.includes("app") || lower.includes("vs code"))) {
-                setTimeout(() => {
-                    const a = document.createElement('a');
-                    a.href = "data:text/plain;charset=utf-8,Mock Download Started";
-                    a.download = "software_installer_mock.exe";
-                    a.click();
-                }, 1000);
-                return "Initializing download... \n\nI have triggered the download for the requested software. Check your browser downloads.";
-            }
-
-            // 2. Open Website Automation
-            if (lower.startsWith("open ")) {
-                let target = lower.replace("open ", "").trim();
-                let url = "";
-                if (target.includes("google")) url = "https://google.com";
-                else if (target.includes("youtube")) url = "https://youtube.com";
-                else url = "https://" + target.replace(" ", ""); // naive guess
-                
-                setTimeout(() => window.open(url, '_blank'), 1000);
-                return `Opening **${target}** in a new tab...`;
-            }
-
-            // 3. Image Generation Mock
-            if (lower.includes("generate image") || lower.includes("create an image")) {
-                // Since we don't have DALL-E key, we simulate UI
-                const prompt = text.replace(/generate image|create an image/gi, "").trim();
-                return `**Generating Image...**\n\n![Generated Image](https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)})\n\n*Here is a generated representation of: ${prompt}*`;
-            }
-
-            return null; // Standard LLM processing
-        }
-
-        // --- FILE UPLOAD LOGIC ---
-        function triggerFileUpload() {
-            document.getElementById('hidden-file-input').click();
-        }
-
-        function handleFileSelect(input) {
-            if (input.files && input.files[0]) {
-                const file = input.files[0];
-                const reader = new FileReader();
-                
-                reader.onload = function(e) {
-                    state.attachedFile = {
-                        name: file.name,
-                        content: e.target.result // base64 or text
-                    };
-                    els.fileName.innerText = file.name;
-                    els.filePreview.classList.remove('hidden');
-                };
-                
-                // Read as text for simplicity (can assume code/txt files)
-                reader.readAsText(file);
-            }
-        }
-
-        function clearFile() {
-            state.attachedFile = null;
-            document.getElementById('hidden-file-input').value = "";
-            els.filePreview.classList.add('hidden');
-        }
-
-        // --- VIDEO CALL LOGIC ---
-        function toggleVideoModal() {
-            const modal = document.getElementById('video-modal');
-            const isHidden = modal.classList.contains('hidden');
-            
-            if (isHidden) {
-                modal.classList.remove('hidden');
-                startCamera();
-            } else {
-                modal.classList.add('hidden');
-                stopCamera();
-            }
-        }
-
-        function startCamera() {
-            if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-                navigator.mediaDevices.getUserMedia({ video: true, audio: false })
-                .then(stream => {
-                    els.localVideo.srcObject = stream;
-                })
-                .catch(err => {
-                    console.error("Camera denied", err);
-                    alert("Camera access denied or unavailable.");
-                });
-            }
-        }
-
-        function stopCamera() {
-            const stream = els.localVideo.srcObject;
-            if (stream) {
-                const tracks = stream.getTracks();
-                tracks.forEach(track => track.stop());
-                els.localVideo.srcObject = null;
-            }
-        }
-
-        // --- SETTINGS LOGIC ---
         function toggleSettings() {
-            const modal = document.getElementById('settings-modal');
-            const apiKeyInput = document.getElementById('api-key-input');
-            const modelInput = document.getElementById('model-input');
-            const sysInput = document.getElementById('system-prompt');
-
-            if (modal.classList.contains('hidden')) {
-                // Open
-                modal.classList.remove('hidden');
-                apiKeyInput.value = state.apiKey;
-                modelInput.value = state.model;
-                sysInput.value = state.systemPrompt;
-            } else {
-                // Close
-                modal.classList.add('hidden');
+            const m = document.getElementById('settings-modal');
+            m.classList.toggle('hidden');
+            if(!m.classList.contains('hidden')) {
+                document.getElementById('api-key').value = state.apiKey;
+                document.getElementById('model-id').value = state.model;
             }
         }
 
         function saveSettings() {
-            state.apiKey = document.getElementById('api-key-input').value.trim();
-            state.model = document.getElementById('model-input').value.trim() || DEFAULT_MODEL;
-            state.systemPrompt = document.getElementById('system-prompt').value.trim();
-            
-            localStorage.setItem("gpt_apiKey", state.apiKey);
+            state.apiKey = document.getElementById('api-key').value;
+            state.model = document.getElementById('model-id').value;
+            localStorage.setItem("gpt_key", state.apiKey);
             localStorage.setItem("gpt_model", state.model);
-            localStorage.setItem("gpt_systemPrompt", state.systemPrompt);
-            
-            document.getElementById('current-model-display').innerText = state.model;
             toggleSettings();
-            alert("Settings Saved!");
         }
 
+        function toggleTheme() {
+            document.documentElement.classList.toggle('dark');
+            localStorage.setItem('theme', document.documentElement.classList.contains('dark') ? 'dark' : 'light');
+        }
+
+        function autoResize(el) {
+            el.style.height = 'auto';
+            el.style.height = el.scrollHeight + 'px';
+        }
+
+        function handleEnter(e) {
+            if(e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendMessage();
+            }
+        }
+        
+        function scrollToBottom() {
+            const c = document.getElementById('chat-container');
+            c.scrollTop = c.scrollHeight;
+        }
+
+        function toggleSidebar() {
+            const sb = document.getElementById('sidebar');
+            sb.classList.toggle('-translate-x-full');
+        }
     </script>
 </body>
 </html>
