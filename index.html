@@ -1,632 +1,915 @@
-<!DOCTYPE html>
-<html lang="en" class="h-full antialiased">
+<!doctype html>
+<html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Universal AI Interface</title>
-    
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-        tailwind.config = {
-            darkMode: 'class',
-            theme: {
-                extend: {
-                    colors: {
-                        brand: {
-                            50: '#f0f9ff',
-                            100: '#e0f2fe',
-                            500: '#0ea5e9',
-                            600: '#0284c7',
-                            900: '#0c4a6e',
-                        },
-                        dark: {
-                            bg: '#131314', // Gemini Dark
-                            surface: '#1e1f20',
-                            border: '#444746'
-                        }
-                    },
-                    animation: {
-                        'pulse-fast': 'pulse 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite',
-                    }
-                }
-            }
-        }
-    </script>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Universal AI Chat Interface — Zero-Build</title>
 
-    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <!-- Tailwind via CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
 
-    <link href='https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css' rel='stylesheet'>
+  <!-- Marked for Markdown rendering -->
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 
-    <style>
-        /* Mobile Viewport Fix */
-        body { height: 100dvh; display: flex; flex-direction: column; }
-        
-        /* Markdown Styling - Gemini Style */
-        .prose { max-width: none; color: inherit; font-size: 0.95rem; line-height: 1.6; }
-        .prose pre { background: #1e1f20; color: #e3e3e3; padding: 1rem; border-radius: 0.5rem; overflow-x: auto; margin: 0.5rem 0; }
-        .prose code { font-family: monospace; background: rgba(0,0,0,0.1); padding: 0.2rem 0.4rem; border-radius: 0.25rem; font-size: 0.9em; }
-        .dark .prose code { background: rgba(255,255,255,0.1); }
-        .prose p { margin-bottom: 0.75rem; }
-        .prose ul { list-style-type: disc; padding-left: 1.5rem; margin-bottom: 0.75rem; }
-        .prose ol { list-style-type: decimal; padding-left: 1.5rem; margin-bottom: 0.75rem; }
-        .prose strong { font-weight: 600; color: inherit; }
+  <!-- Highlight.js for code blocks -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
 
-        /* Custom Scrollbar */
-        ::-webkit-scrollbar { width: 6px; height: 6px; }
-        ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
-        .dark ::-webkit-scrollbar-thumb { background: #444746; }
-        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
-
-        /* Animations */
-        .fade-in { animation: fadeIn 0.3s ease-out forwards; opacity: 0; }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
-        
-        /* Typing Cursor */
-        .typing-cursor::after { content: '▋'; animation: blink 1s step-start infinite; margin-left: 2px; }
-        @keyframes blink { 50% { opacity: 0; } }
-
-        /* Utility */
-        .hidden-scrollbar::-webkit-scrollbar { display: none; }
-        .glass-panel { background: rgba(255, 255, 255, 0.8); backdrop-filter: blur(8px); }
-        .dark .glass-panel { background: rgba(30, 31, 32, 0.8); }
-    </style>
+  <style>
+    :root{
+      --bg:#f7f7f8;
+      --panel:#ffffff;
+      --muted:#6b7280;
+      --accent:#0f172a;
+      --ai:#f3f4f6;
+      --user:#e6f2ff;
+    }
+    [data-theme="dark"]{
+      --bg: #0b1220;
+      --panel:#071021;
+      --muted:#9aa4b2;
+      --accent:#e6eef8;
+      --ai:#071923;
+      --user:#0b2a3f;
+    }
+    html,body{height:100%;}
+    body{
+      background:var(--bg);
+      color:var(--accent);
+      -webkit-font-smoothing:antialiased;
+      -moz-osx-font-smoothing:grayscale;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+    }
+    #loading{
+      position:fixed; inset:0; display:flex; align-items:center; justify-content:center;
+      background:linear-gradient(180deg, rgba(0,0,0,0.02), rgba(0,0,0,0.02));
+      z-index:60; font-weight:600;
+    }
+    .sidebar { min-width:260px; max-width:320px; }
+    .chat-window { flex:1 1 auto; min-height:0; display:flex; flex-direction:column; }
+    .msg-ai { background:var(--panel); border:1px solid rgba(0,0,0,0.04); }
+    .msg-user { background:var(--user); }
+    .input-area { position: sticky; bottom: 0; z-index:50; background: linear-gradient(180deg, transparent, rgba(0,0,0,0.02)); padding-bottom: env(safe-area-inset-bottom); }
+    .mobile-sidebar { transform: translateX(-110%); transition: transform .25s ease; }
+    .mobile-sidebar.open { transform: translateX(0%); }
+    .markdown :is(h1,h2,h3){ color:var(--accent); }
+    .markdown pre{ overflow:auto; border-radius:8px; padding:12px; background:var(--ai); }
+    /* small responsive tweaks */
+    @media (max-width: 767px) {
+      aside#sidebar { display:none; }
+    }
+  </style>
 </head>
-<body class="bg-gray-50 text-gray-800 dark:bg-dark-bg dark:text-gray-200 overflow-hidden transition-colors duration-200">
+<body class="min-h-screen" data-theme="light">
+  <!-- Loader -->
+  <div id="loading">Loading App...</div>
 
-    <div id="loader" class="fixed inset-0 z-50 flex flex-col items-center justify-center bg-white dark:bg-dark-bg">
-        <div class="w-12 h-12 border-4 border-brand-500 border-t-transparent rounded-full animate-spin"></div>
-        <p class="mt-4 text-sm text-gray-500 font-medium">Initializing Universal AI...</p>
-    </div>
+  <div id="app" class="min-h-screen hidden">
+    <div class="flex min-h-screen">
+      <!-- Sidebar (desktop) -->
+      <aside id="sidebar" class="sidebar bg-white/50 backdrop-blur-md p-3 border-r border-gray-200 hidden md:block">
+        <div class="flex items-center justify-between mb-3">
+          <h2 class="font-semibold text-lg">Universal AI</h2>
+          <div class="flex items-center gap-2">
+            <button id="newChatBtn" class="px-3 py-1 bg-indigo-600 text-white rounded-md text-sm">New</button>
+            <button id="toggleTheme" title="Toggle Dark Mode" class="p-2 rounded-md hover:bg-gray-100">
+              <svg id="themeIcon" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path id="themePath" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m8.66-10.66l-.7.7M4.05 19.95l-.7-.7M21 12h-1M4 12H3m15.66 4.66l-.7-.7M4.05 4.05l-.7.7"/></svg>
+            </button>
+          </div>
+        </div>
 
-    <div id="app" class="flex h-full w-full hidden">
-
-        <div id="sidebar-overlay" class="fixed inset-0 bg-black/50 z-20 hidden lg:hidden backdrop-blur-sm transition-opacity" onclick="app.toggleSidebar()"></div>
-
-        <aside id="sidebar" class="fixed inset-y-0 left-0 z-30 w-72 bg-gray-100 dark:bg-dark-surface border-r border-gray-200 dark:border-dark-border transform -translate-x-full lg:relative lg:translate-x-0 transition-transform duration-300 flex flex-col h-full shadow-2xl lg:shadow-none">
-            
-            <div class="p-4 flex items-center justify-between">
-                <button onclick="app.startNewChat()" class="flex-1 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-sm font-medium py-3 px-4 rounded-xl flex items-center justify-start gap-2 transition-colors">
-                    <i class='bx bx-plus text-lg'></i>
-                    <span>New Chat</span>
-                </button>
-                <button onclick="app.toggleSidebar()" class="lg:hidden ml-2 p-2 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700">
-                    <i class='bx bx-x text-xl'></i>
-                </button>
+        <div class="space-y-2">
+          <div class="flex items-center justify-between text-sm text-gray-500">
+            <div>Chats</div>
+            <div class="flex items-center gap-2">
+              <button id="importBtn" class="text-xs px-2 py-1 rounded border">Import</button>
+              <button id="exportBtn" class="text-xs px-2 py-1 rounded border">Export</button>
             </div>
+          </div>
+          <div id="chatList" class="space-y-2 mt-2 overflow-auto" style="max-height:65vh"></div>
+        </div>
 
-            <div class="flex-1 overflow-y-auto px-3 pb-2 space-y-1" id="chat-history-list">
-                </div>
-
-            <div class="p-4 border-t border-gray-200 dark:border-dark-border">
-                <button onclick="app.openModal('settings-modal')" class="w-full flex items-center gap-3 p-2 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg text-sm transition-colors">
-                    <i class='bx bx-cog text-xl text-gray-500'></i>
-                    <span>Settings</span>
-                </button>
+        <div class="mt-4 border-t pt-3 text-sm text-gray-500">
+          <div class="mb-2 font-medium">Settings</div>
+          <div class="space-y-2">
+            <div>
+              <label class="text-xs text-gray-600">OpenRouter API Key</label>
+              <input id="apiKey" type="password" class="w-full mt-1 p-2 rounded border text-sm" placeholder="sk-... (stored in localStorage)" />
             </div>
-        </aside>
+            <div>
+              <label class="text-xs text-gray-600">Model</label>
+              <input id="modelName" type="text" class="w-full mt-1 p-2 rounded border text-sm" value="deepseek/deepseek-r1:free" />
+            </div>
+            <div>
+              <label class="text-xs text-gray-600">Global System Prompt</label>
+              <textarea id="globalSystem" rows="3" class="w-full mt-1 p-2 rounded border text-sm" placeholder="You are a helpful assistant..."></textarea>
+            </div>
+            <div class="flex gap-2 mt-2">
+              <button id="saveSettings" class="px-3 py-2 bg-green-600 text-white rounded">Save</button>
+              <button id="clearStorage" class="px-3 py-2 bg-red-600 text-white rounded">Clear All</button>
+            </div>
+          </div>
+        </div>
+      </aside>
 
-        <main class="flex-1 flex flex-col h-full relative min-w-0">
-            
-            <header class="flex-none h-14 flex items-center justify-between px-4 border-b border-gray-100 dark:border-dark-border bg-white/90 dark:bg-dark-bg/90 backdrop-blur z-10">
-                <div class="flex items-center gap-3">
-                    <button onclick="app.toggleSidebar()" class="lg:hidden p-2 -ml-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800">
-                        <i class='bx bx-menu text-2xl'></i>
-                    </button>
-                    <h1 class="text-lg font-semibold bg-gradient-to-r from-brand-600 to-purple-600 bg-clip-text text-transparent">Universal AI</h1>
-                    <span id="model-badge" class="hidden sm:inline-block text-[10px] px-2 py-0.5 rounded-full bg-gray-100 dark:bg-gray-800 text-gray-500 border border-gray-200 dark:border-gray-700">Checking Model...</span>
-                </div>
+      <!-- Mobile header -->
+      <div class="flex md:hidden items-center justify-between w-full p-3 bg-white/60 border-b border-gray-200">
+        <div class="flex items-center gap-3">
+          <button id="mobileMenuBtn" class="p-2 rounded-md border">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
+          </button>
+          <div class="font-semibold">Universal AI</div>
+        </div>
+
+        <div class="flex items-center gap-2">
+          <button id="mobileThemeToggle" class="p-2 rounded-md border">
+            <svg class="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 3v1m0 16v1m8.66-10.66l-.7.7M4.05 19.95l-.7-.7M21 12h-1M4 12H3m15.66 4.66l-.7-.7M4.05 4.05l-.7.7"/></svg>
+          </button>
+          <button id="mobileNewChat" class="px-3 py-1 bg-indigo-600 text-white rounded-md text-sm">New</button>
+        </div>
+      </div>
+
+      <!-- Mobile sidebar overlay (cloned content) -->
+      <div id="mobileSidebar" class="mobile-sidebar fixed inset-y-0 left-0 z-40 w-80 bg-white p-4 border-r border-gray-200 overflow-auto md:hidden"></div>
+
+      <!-- Main chat area -->
+      <main class="chat-window bg-transparent flex-1 flex flex-col">
+        <div class="flex-1 overflow-auto p-4" id="messagesWrap" style="min-height:0;">
+          <div id="messages" class="space-y-4 max-w-3xl mx-auto markdown"></div>
+        </div>
+
+        <!-- bottom area -->
+        <div class="input-area bg-white/60 border-t border-gray-200 p-3">
+          <div class="max-w-3xl mx-auto flex items-start gap-2">
+            <div class="flex-1">
+              <div class="flex items-center gap-2 mb-2">
+                <select id="currentSystemSelect" class="text-sm p-1 border rounded">
+                  <option value="__global">Use Global</option>
+                  <option value="__chat">Use Chat-specific</option>
+                </select>
+
+                <button id="openSystemEditor" class="text-sm px-2 py-1 border rounded">Edit System</button>
+
+                <button id="uploadBtn" class="text-sm px-2 py-1 border rounded">Upload</button>
+                <input id="fileInput" type="file" class="hidden" multiple />
+                <button id="imageCreateBtn" class="text-sm px-2 py-1 border rounded">Create Image</button>
+                <button id="startVideoBtn" class="text-sm px-2 py-1 border rounded">Video Call</button>
+                <button id="automationBtn" class="text-sm px-2 py-1 border rounded">Automations</button>
+              </div>
+
+              <textarea id="promptInput" rows="2" placeholder="Type a message, or use /download <URL> /open <URL> /image <desc>" class="w-full p-3 rounded border text-sm resize-none"></textarea>
+
+              <div class="flex items-center justify-between mt-2">
+                <div class="text-xs text-gray-500">Press Enter to send • Shift+Enter for newline</div>
                 <div class="flex items-center gap-2">
-                    <button onclick="app.openModal('system-prompt-modal')" class="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800" title="System Prompt">
-                        <i class='bx bx-slider-alt text-xl'></i>
-                    </button>
-                    <button onclick="app.toggleTheme()" class="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800">
-                        <i class='bx bx-moon text-xl dark:hidden'></i>
-                        <i class='bx bx-sun text-xl hidden dark:block text-yellow-400'></i>
-                    </button>
+                  <button id="sendBtn" class="px-4 py-2 bg-indigo-600 text-white rounded">Send</button>
                 </div>
-            </header>
-
-            <div id="chat-container" class="flex-1 overflow-y-auto p-4 md:p-8 scroll-smooth">
-                <div id="welcome-screen" class="h-full flex flex-col items-center justify-center text-center opacity-0 hidden">
-                    <div class="w-16 h-16 bg-gradient-to-br from-brand-500 to-purple-600 rounded-2xl mb-6 shadow-lg flex items-center justify-center">
-                        <i class='bx bx-bot text-3xl text-white'></i>
-                    </div>
-                    <h2 class="text-2xl font-bold mb-2">How can I help you today?</h2>
-                    <p class="text-gray-500 dark:text-gray-400 max-w-md">I'm ready to assist with code, writing, analysis, or general questions.</p>
-                </div>
-                
-                <div id="messages-list" class="max-w-3xl mx-auto space-y-6 pb-4">
-                    </div>
+              </div>
             </div>
-
-            <div class="flex-none p-4 bg-gradient-to-t from-white via-white to-transparent dark:from-dark-bg dark:via-dark-bg">
-                <div class="max-w-3xl mx-auto relative">
-                    <div class="relative flex items-end gap-2 bg-gray-100 dark:bg-dark-surface border border-transparent focus-within:border-gray-300 dark:focus-within:border-gray-600 rounded-3xl p-2 shadow-sm transition-all">
-                        <textarea id="user-input" rows="1" class="w-full bg-transparent border-0 focus:ring-0 p-3 max-h-32 resize-none text-base outline-none text-gray-800 dark:text-gray-100 placeholder-gray-500" placeholder="Type a message..." oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px'" onkeydown="if(event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); app.sendMessage(); }"></textarea>
-                        
-                        <button id="send-btn" onclick="app.sendMessage()" class="p-3 bg-brand-600 hover:bg-brand-700 text-white rounded-full flex-shrink-0 transition-transform active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed">
-                            <i class='bx bxs-paper-plane'></i>
-                        </button>
-                    </div>
-                    <div class="text-center mt-2">
-                        <p class="text-[10px] text-gray-400">AI can make mistakes. Check important info.</p>
-                    </div>
-                </div>
-            </div>
-
-        </main>
-    </div>
-
-    <div id="settings-modal" class="fixed inset-0 z-50 hidden bg-black/60 backdrop-blur-sm flex items-center justify-center p-4" onclick="if(event.target === this) app.closeModal('settings-modal')">
-        <div class="bg-white dark:bg-dark-surface w-full max-w-md rounded-2xl shadow-2xl overflow-hidden transform transition-all scale-100">
-            <div class="p-5 border-b border-gray-100 dark:border-dark-border flex justify-between items-center">
-                <h3 class="font-bold text-lg">Settings</h3>
-                <button onclick="app.closeModal('settings-modal')" class="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"><i class='bx bx-x text-2xl'></i></button>
-            </div>
-            <div class="p-6 space-y-4">
-                <div>
-                    <label class="block text-xs font-semibold uppercase text-gray-500 mb-1">OpenRouter API Key</label>
-                    <input type="password" id="api-key-input" class="w-full bg-gray-50 dark:bg-black/20 border border-gray-300 dark:border-gray-600 rounded-lg p-3 outline-none focus:border-brand-500 transition-colors" placeholder="sk-or-...">
-                    <p class="text-xs text-gray-500 mt-1">Stored locally in your browser.</p>
-                </div>
-                <div>
-                    <label class="block text-xs font-semibold uppercase text-gray-500 mb-1">Model ID</label>
-                    <input type="text" id="model-input" class="w-full bg-gray-50 dark:bg-black/20 border border-gray-300 dark:border-gray-600 rounded-lg p-3 outline-none focus:border-brand-500 transition-colors" placeholder="deepseek/deepseek-r1:free">
-                </div>
-            </div>
-            <div class="p-5 border-t border-gray-100 dark:border-dark-border bg-gray-50 dark:bg-black/20 flex justify-end">
-                <button onclick="app.saveSettings()" class="bg-brand-600 hover:bg-brand-700 text-white px-5 py-2 rounded-lg font-medium transition-colors">Save Changes</button>
-            </div>
+          </div>
         </div>
-    </div>
 
-    <div id="system-prompt-modal" class="fixed inset-0 z-50 hidden bg-black/60 backdrop-blur-sm flex items-center justify-center p-4" onclick="if(event.target === this) app.closeModal('system-prompt-modal')">
-        <div class="bg-white dark:bg-dark-surface w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden">
-            <div class="p-5 border-b border-gray-100 dark:border-dark-border flex justify-between items-center">
-                <h3 class="font-bold text-lg">System Instructions</h3>
-                <button onclick="app.closeModal('system-prompt-modal')" class="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"><i class='bx bx-x text-2xl'></i></button>
+        <!-- Video call modal -->
+        <div id="videoModal" class="fixed inset-0 hidden z-50 items-center justify-center p-4">
+          <div class="bg-white/90 backdrop-blur rounded-xl w-full max-w-3xl p-4 border">
+            <div class="flex items-center justify-between mb-2">
+              <div class="font-semibold">Live Video (Demo)</div>
+              <div>
+                <button id="endCallBtn" class="px-3 py-1 bg-red-600 text-white rounded">End</button>
+              </div>
             </div>
-            <div class="p-6">
-                <p class="text-sm text-gray-500 mb-3">Define how the AI should behave (e.g., "You are a concise coding expert").</p>
-                <textarea id="system-prompt-input" rows="6" class="w-full bg-gray-50 dark:bg-black/20 border border-gray-300 dark:border-gray-600 rounded-lg p-3 outline-none focus:border-brand-500 resize-none"></textarea>
+            <div class="grid grid-cols-2 gap-3">
+              <video id="localVideo" autoplay playsinline class="w-full rounded bg-black"></video>
+              <video id="remoteVideo" autoplay playsinline class="w-full rounded bg-black"></video>
             </div>
-            <div class="p-5 border-t border-gray-100 dark:border-dark-border bg-gray-50 dark:bg-black/20 flex justify-end">
-                <button onclick="app.saveSystemPrompt()" class="bg-brand-600 hover:bg-brand-700 text-white px-5 py-2 rounded-lg font-medium transition-colors">Save</button>
+            <div class="mt-3 text-xs text-gray-500">This demo uses manual copy/paste SDP for peer-to-peer testing.</div>
+            <div class="mt-2 grid grid-cols-3 gap-2">
+              <button id="createOffer" class="px-3 py-1 border rounded">Create Offer</button>
+              <button id="acceptAnswer" class="px-3 py-1 border rounded">Accept Answer</button>
+              <button id="copyLocalSDP" class="px-3 py-1 border rounded">Copy Local SDP</button>
             </div>
+            <textarea id="sdpArea" rows="4" class="w-full mt-2 p-2 border rounded text-xs" placeholder="Paste remote SDP here..."></textarea>
+          </div>
         </div>
+
+        <!-- System editor modal -->
+        <div id="systemModal" class="fixed inset-0 hidden z-50 items-center justify-center p-4">
+          <div class="bg-white/95 rounded-lg w-full max-w-2xl p-4 border">
+            <div class="flex items-center justify-between mb-2">
+              <div class="font-semibold">System Prompt Editor</div>
+              <div>
+                <button id="closeSystem" class="px-3 py-1 border rounded">Close</button>
+              </div>
+            </div>
+            <textarea id="systemEditorArea" rows="6" class="w-full p-2 border rounded" placeholder="System prompt for this chat..."></textarea>
+            <div class="flex gap-2 mt-3">
+              <button id="saveSystem" class="px-3 py-1 bg-indigo-600 text-white rounded">Save</button>
+              <button id="saveSystemGlobal" class="px-3 py-1 bg-gray-300 rounded">Save as Global</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Automation modal -->
+        <div id="automationModal" class="fixed inset-0 hidden z-50 items-center justify-center p-4">
+          <div class="bg-white/95 rounded-lg w-full max-w-2xl p-4 border">
+            <div class="flex items-center justify-between mb-2">
+              <div class="font-semibold">Automations</div>
+              <div>
+                <button id="closeAutomation" class="px-3 py-1 border rounded">Close</button>
+              </div>
+            </div>
+
+            <div id="automationList" class="space-y-2"></div>
+
+            <div class="mt-3 border-t pt-3">
+              <div class="text-sm font-medium">Create Automation</div>
+              <div class="grid grid-cols-1 gap-2 mt-2">
+                <input id="automationTrigger" placeholder="Trigger keyword (e.g. invoice ready)" class="p-2 border rounded" />
+                <select id="automationAction" class="p-2 border rounded">
+                  <option value="send_message">Send Message</option>
+                  <option value="open_url">Open URL</option>
+                  <option value="download_url">Download URL</option>
+                </select>
+                <input id="automationActionParam" placeholder="Action param (message text or URL)" class="p-2 border rounded" />
+                <div class="flex gap-2">
+                  <button id="addAutomation" class="px-3 py-1 bg-green-600 text-white rounded">Add</button>
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+      </main>
     </div>
+  </div>
 
-    <script>
-        /**
-         * UNIVERSAL AI INTERFACE - SINGLE FILE LOGIC
-         * NO BUILD TOOLS REQUIRED
-         */
-        
-        const DEFAULT_MODEL = "deepseek/deepseek-r1:free";
-        const API_URL = "https://openrouter.ai/api/v1/chat/completions";
+  <!-- Script at VERY END of body -->
+  <script>
+  (function(){
+    'use strict';
 
-        const app = {
-            state: {
-                chats: [],
-                currentChatId: null,
-                apiKey: "",
-                model: DEFAULT_MODEL,
-                theme: "light",
-                isGenerating: false,
-                sidebarOpen: false
-            },
+    // Helpers
+    const $ = (sel, root=document) => root.querySelector(sel);
+    const $$ = (sel, root=document) => Array.from((root || document).querySelectorAll(sel));
+    const safeJSON = (s, fallback=null) => { try { return JSON.parse(s); } catch(e) { return fallback; } };
+    const escapeHtml = (s='') => String(s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 
-            // --- INITIALIZATION ---
-            init: function() {
-                // Load Settings
-                this.state.apiKey = localStorage.getItem('or_api_key') || "";
-                this.state.model = localStorage.getItem('or_model') || DEFAULT_MODEL;
-                this.state.theme = localStorage.getItem('theme') || "light";
-                
-                // Load Chats
-                const savedChats = localStorage.getItem('chats');
-                if (savedChats) {
-                    this.state.chats = JSON.parse(savedChats);
-                }
+    // Elements
+    const loading = $('#loading');
+    const app = $('#app');
+    const chatList = $('#chatList');
+    const messagesEl = $('#messages');
+    const messagesWrap = $('#messagesWrap');
+    const apiKeyInput = $('#apiKey');
+    const modelInput = $('#modelName');
+    const globalSystemInput = $('#globalSystem');
+    const saveSettingsBtn = $('#saveSettings');
+    const clearStorageBtn = $('#clearStorage');
+    const newChatBtn = $('#newChatBtn');
+    const sendBtn = $('#sendBtn');
+    const promptInput = $('#promptInput');
+    const toggleThemeBtn = $('#toggleTheme');
+    const mobileThemeToggle = $('#mobileThemeToggle');
+    const mobileMenuBtn = $('#mobileMenuBtn');
+    const mobileSidebar = $('#mobileSidebar');
+    const mobileNewChat = $('#mobileNewChat');
+    const openSystemEditorBtn = $('#openSystemEditor');
+    const systemModal = $('#systemModal');
+    const systemEditorArea = $('#systemEditorArea');
+    const saveSystemBtn = $('#saveSystem');
+    const saveSystemGlobalBtn = $('#saveSystemGlobal');
+    const closeSystemBtn = $('#closeSystem');
+    const currentSystemSelect = $('#currentSystemSelect');
+    const uploadBtn = $('#uploadBtn');
+    const fileInput = $('#fileInput');
+    const imageCreateBtn = $('#imageCreateBtn');
+    const startVideoBtn = $('#startVideoBtn');
+    const videoModal = $('#videoModal');
+    const localVideo = $('#localVideo');
+    const remoteVideo = $('#remoteVideo');
+    const createOfferBtn = $('#createOffer');
+    const acceptAnswerBtn = $('#acceptAnswer');
+    const copyLocalSDPBtn = $('#copyLocalSDP');
+    const sdpArea = $('#sdpArea');
+    const endCallBtn = $('#endCallBtn');
+    const automationBtn = $('#automationBtn');
+    const automationModal = $('#automationModal');
+    const automationListEl = $('#automationList');
+    const addAutomationBtn = $('#addAutomation');
+    const automationTrigger = $('#automationTrigger');
+    const automationAction = $('#automationAction');
+    const automationActionParam = $('#automationActionParam');
+    const importBtn = $('#importBtn');
+    const exportBtn = $('#exportBtn');
+    const openSystemBtnMobile = null; // placeholder
 
-                // Apply Theme
-                this.applyTheme();
+    // LocalStorage keys
+    const LS = {
+      API_KEY: 'uaic_api_key_v1',
+      MODEL: 'uaic_model_v1',
+      CHATS: 'uaic_chats_v1',
+      THEME: 'uaic_theme_v1',
+      GLOBAL_SYSTEM: 'uaic_global_system_v1',
+      AUTOMATIONS: 'uaic_automations_v1'
+    };
 
-                // Hydrate DOM
-                document.getElementById('api-key-input').value = this.state.apiKey;
-                document.getElementById('model-input').value = this.state.model;
-                document.getElementById('model-badge').textContent = this.state.model.split('/')[1] || this.state.model;
+    // App state
+    const state = {
+      apiKey: '',
+      model: 'deepseek/deepseek-r1:free',
+      chats: [],
+      currentChatId: null,
+      theme: 'light',
+      streamingController: null,
+      pc: null,
+      automations: []
+    };
 
-                // Start
-                this.renderChatList();
-                
-                if (this.state.chats.length > 0) {
-                    this.loadChat(this.state.chats[0].id);
-                } else {
-                    this.startNewChat();
-                }
+    // Load from localStorage safely
+    function loadFromStorage(){
+      try {
+        state.apiKey = localStorage.getItem(LS.API_KEY) || '';
+        state.model = localStorage.getItem(LS.MODEL) || state.model;
+        state.theme = localStorage.getItem(LS.THEME) || 'light';
+        const chatsRaw = localStorage.getItem(LS.CHATS);
+        state.chats = chatsRaw ? safeJSON(chatsRaw, []) : [];
+        state.automations = safeJSON(localStorage.getItem(LS.AUTOMATIONS), []) || [];
+        globalSystemInput.value = localStorage.getItem(LS.GLOBAL_SYSTEM) || '';
+        apiKeyInput.value = state.apiKey;
+        modelInput.value = state.model;
+        updateThemeUI();
+      } catch (e) {
+        console.warn('loadFromStorage failed', e);
+      }
+    }
+    function saveToStorage(key, val){ try { localStorage.setItem(key, val); } catch(e){ console.warn('saveToStorage failed', e); } }
+    function persistChats(){ try { saveToStorage(LS.CHATS, JSON.stringify(state.chats)); } catch(e){ } }
+    function persistAutomations(){ try { saveToStorage(LS.AUTOMATIONS, JSON.stringify(state.automations)); } catch(e){} }
 
-                // Remove Loader
-                setTimeout(() => {
-                    document.getElementById('loader').classList.add('hidden');
-                    document.getElementById('app').classList.remove('hidden');
-                    document.getElementById('welcome-screen').classList.remove('hidden');
-                    document.getElementById('welcome-screen').classList.add('fade-in');
-                }, 500);
+    // Chat utils
+    function createChat(title='New Chat'){
+      const id = 'chat_' + Date.now() + '_' + Math.random().toString(36).slice(2,8);
+      const chat = { id, title, system:'', messages:[], created: Date.now() };
+      state.chats.unshift(chat);
+      persistChats();
+      renderChatList();
+      setCurrentChat(id);
+      return chat;
+    }
+    function deleteChat(id){
+      const idx = state.chats.findIndex(c=>c.id===id);
+      if (idx>=0){ state.chats.splice(idx,1); persistChats(); if (state.currentChatId===id){ if (state.chats.length) setCurrentChat(state.chats[0].id); else { state.currentChatId=null; messagesEl.innerHTML=''; } } renderChatList(); }
+    }
+    function renameChat(id,newTitle){ const chat=state.chats.find(c=>c.id===id); if(chat){ chat.title=newTitle; persistChats(); renderChatList(); } }
+    function getCurrentChat(){ return state.chats.find(c=>c.id===state.currentChatId); }
+    function setCurrentChat(id){ state.currentChatId=id; renderChatList(); renderMessages(); const chat=getCurrentChat(); if(chat && chat.system) currentSystemSelect.value='__chat'; else currentSystemSelect.value='__global'; }
 
-                // Configure Marked
-                marked.use({
-                    breaks: true,
-                    gfm: true
-                });
-            },
+    // Rendering chat list
+    function renderChatList(){
+      chatList.innerHTML='';
+      state.chats.forEach(chat=>{
+        const el = document.createElement('div');
+        el.className = 'p-2 rounded hover:bg-gray-50 flex items-center justify-between';
+        if (chat.id === state.currentChatId) el.classList.add('bg-indigo-50');
+        el.innerHTML = `
+          <div class="flex items-center gap-3">
+            <div class="w-8 h-8 rounded bg-gradient-to-br from-indigo-400 to-purple-500 flex items-center justify-center text-white text-sm font-semibold">${escapeHtml(chat.title.slice(0,2).toUpperCase())}</div>
+            <div>
+              <div class="font-medium text-sm truncate">${escapeHtml(chat.title)}</div>
+              <div class="text-xs text-gray-500">${new Date(chat.created).toLocaleString()}</div>
+            </div>
+          </div>
+          <div class="flex items-center gap-2">
+            <button class="renameBtn text-xs px-2 py-1 border rounded" data-id="${chat.id}">Rename</button>
+            <button class="delBtn text-xs px-2 py-1 border rounded" data-id="${chat.id}">Delete</button>
+          </div>
+        `;
+        el.querySelector('.renameBtn').addEventListener('click', (e)=>{ e.stopPropagation(); const t=prompt('Rename chat', chat.title); if(t && t.trim()) renameChat(chat.id,t.trim()); });
+        el.querySelector('.delBtn').addEventListener('click', (e)=>{ e.stopPropagation(); if(confirm('Delete this chat?')) deleteChat(chat.id); });
+        el.addEventListener('click', (e)=>{ if(e.target.classList.contains('delBtn')||e.target.classList.contains('renameBtn')) return; setCurrentChat(chat.id); mobileSidebar.classList.remove('open'); });
+        chatList.appendChild(el);
+      });
+      // clone sidebar for mobile
+      const leftAside = document.querySelector('aside#sidebar');
+      if (leftAside) {
+        mobileSidebar.innerHTML = leftAside.innerHTML;
+        // re-wire mobile new button
+        const mobileNew = mobileSidebar.querySelector('#newChatBtn');
+        if (mobileNew) mobileNew.addEventListener('click', ()=> createChat());
+      }
+    }
 
-            // --- THEME & UI ---
-            applyTheme: function() {
-                const html = document.documentElement;
-                if (this.state.theme === 'dark') {
-                    html.classList.add('dark');
-                } else {
-                    html.classList.remove('dark');
-                }
-                localStorage.setItem('theme', this.state.theme);
-            },
-
-            toggleTheme: function() {
-                this.state.theme = this.state.theme === 'light' ? 'dark' : 'light';
-                this.applyTheme();
-            },
-
-            toggleSidebar: function() {
-                const sidebar = document.getElementById('sidebar');
-                const overlay = document.getElementById('sidebar-overlay');
-                this.state.sidebarOpen = !this.state.sidebarOpen;
-                
-                if (this.state.sidebarOpen) {
-                    sidebar.classList.remove('-translate-x-full');
-                    overlay.classList.remove('hidden');
-                } else {
-                    sidebar.classList.add('-translate-x-full');
-                    overlay.classList.add('hidden');
-                }
-            },
-
-            openModal: function(id) {
-                const modal = document.getElementById(id);
-                modal.classList.remove('hidden');
-                
-                // Populate specific modal fields if needed
-                if (id === 'system-prompt-modal') {
-                    const chat = this.getCurrentChat();
-                    document.getElementById('system-prompt-input').value = chat ? (chat.systemPrompt || "") : "";
-                }
-            },
-
-            closeModal: function(id) {
-                document.getElementById(id).classList.add('hidden');
-            },
-
-            saveSettings: function() {
-                const key = document.getElementById('api-key-input').value.trim();
-                const model = document.getElementById('model-input').value.trim();
-                
-                if (!key) { alert("API Key is required"); return; }
-                
-                this.state.apiKey = key;
-                this.state.model = model || DEFAULT_MODEL;
-                
-                localStorage.setItem('or_api_key', this.state.apiKey);
-                localStorage.setItem('or_model', this.state.model);
-                
-                document.getElementById('model-badge').textContent = this.state.model.split('/')[1] || this.state.model;
-                this.closeModal('settings-modal');
-                alert("Settings Saved!");
-            },
-
-            // --- CHAT MANAGEMENT ---
-            startNewChat: function() {
-                const newChat = {
-                    id: Date.now().toString(),
-                    title: "New Conversation",
-                    messages: [],
-                    systemPrompt: "",
-                    timestamp: Date.now()
-                };
-                
-                this.state.chats.unshift(newChat);
-                this.saveChats();
-                this.loadChat(newChat.id);
-                this.renderChatList();
-                
-                // Mobile: close sidebar on selection
-                if (window.innerWidth < 1024) this.toggleSidebar();
-                
-                document.getElementById('user-input').focus();
-            },
-
-            loadChat: function(id) {
-                this.state.currentChatId = id;
-                this.renderChatList(); // Update active state
-                this.renderMessages();
-                
-                // Handle welcome screen visibility
-                const chat = this.getCurrentChat();
-                const welcome = document.getElementById('welcome-screen');
-                if (chat.messages.length === 0) {
-                    welcome.classList.remove('hidden');
-                } else {
-                    welcome.classList.add('hidden');
-                }
-            },
-
-            getCurrentChat: function() {
-                return this.state.chats.find(c => c.id === this.state.currentChatId);
-            },
-
-            saveChats: function() {
-                localStorage.setItem('chats', JSON.stringify(this.state.chats));
-            },
-
-            deleteChat: function(e, id) {
-                e.stopPropagation();
-                if (!confirm("Delete this chat?")) return;
-                
-                this.state.chats = this.state.chats.filter(c => c.id !== id);
-                this.saveChats();
-                
-                if (this.state.currentChatId === id) {
-                    if (this.state.chats.length > 0) {
-                        this.loadChat(this.state.chats[0].id);
-                    } else {
-                        this.startNewChat();
-                    }
-                } else {
-                    this.renderChatList();
-                }
-            },
-
-            renameChat: function(e, id) {
-                e.stopPropagation();
-                const chat = this.state.chats.find(c => c.id === id);
-                const newTitle = prompt("Rename chat:", chat.title);
-                if (newTitle) {
-                    chat.title = newTitle;
-                    this.saveChats();
-                    this.renderChatList();
-                }
-            },
-
-            saveSystemPrompt: function() {
-                const promptVal = document.getElementById('system-prompt-input').value;
-                const chat = this.getCurrentChat();
-                if (chat) {
-                    chat.systemPrompt = promptVal;
-                    this.saveChats();
-                }
-                this.closeModal('system-prompt-modal');
-            },
-
-            // --- RENDERING ---
-            renderChatList: function() {
-                const list = document.getElementById('chat-history-list');
-                list.innerHTML = "";
-                
-                this.state.chats.forEach(chat => {
-                    const isActive = chat.id === this.state.currentChatId;
-                    const div = document.createElement('div');
-                    div.className = `group flex items-center justify-between p-3 rounded-lg cursor-pointer text-sm transition-colors ${isActive ? 'bg-brand-100 dark:bg-brand-900/30 text-brand-700 dark:text-brand-400 font-medium' : 'hover:bg-gray-200 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300'}`;
-                    div.onclick = () => this.loadChat(chat.id);
-                    
-                    div.innerHTML = `
-                        <div class="flex items-center gap-3 overflow-hidden">
-                            <i class='bx bx-message-square-detail text-lg shrink-0'></i>
-                            <span class="truncate">${chat.title}</span>
-                        </div>
-                        <div class="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity ${isActive ? 'opacity-100' : ''}">
-                            <button onclick="app.renameChat(event, '${chat.id}')" class="p-1 hover:bg-black/10 dark:hover:bg-white/10 rounded"><i class='bx bx-edit-alt'></i></button>
-                            <button onclick="app.deleteChat(event, '${chat.id}')" class="p-1 hover:bg-red-100 text-red-500 rounded"><i class='bx bx-trash'></i></button>
-                        </div>
-                    `;
-                    list.appendChild(div);
-                });
-            },
-
-            renderMessages: function() {
-                const container = document.getElementById('messages-list');
-                const chat = this.getCurrentChat();
-                if (!chat) return;
-
-                container.innerHTML = "";
-                
-                chat.messages.forEach(msg => {
-                    this.appendMessageToDOM(msg.role, msg.content);
-                });
-
-                this.scrollToBottom();
-            },
-
-            appendMessageToDOM: function(role, content) {
-                const container = document.getElementById('messages-list');
-                const isUser = role === 'user';
-                
-                const div = document.createElement('div');
-                div.className = `flex ${isUser ? 'justify-end' : 'justify-start'} fade-in`;
-                
-                const bubble = document.createElement('div');
-                bubble.className = `max-w-[90%] md:max-w-[80%] rounded-2xl p-4 overflow-hidden ${isUser 
-                    ? 'bg-gray-100 dark:bg-dark-surface text-gray-800 dark:text-gray-100 rounded-tr-sm' 
-                    : 'text-gray-800 dark:text-gray-100'}`; // AI messages have no background, just text like Gemini
-                
-                if (isUser) {
-                    bubble.innerText = content;
-                } else {
-                    // Check if this is the "typing" placeholder
-                    if (content === '...typing...') {
-                         div.id = "current-streaming-message";
-                         bubble.innerHTML = `<span class="typing-cursor"></span>`;
-                    } else {
-                         // Parse Markdown
-                         bubble.classList.add('prose', 'dark:prose-invert');
-                         bubble.innerHTML = marked.parse(content);
-                    }
-                }
-                
-                // Avatar for AI
-                if (!isUser) {
-                    const iconDiv = document.createElement('div');
-                    iconDiv.className = "mr-3 mt-1 flex-shrink-0 w-8 h-8 bg-gradient-to-br from-brand-500 to-purple-600 rounded-full flex items-center justify-center text-white text-xs shadow-md";
-                    iconDiv.innerHTML = "<i class='bx bx-bot text-lg'></i>";
-                    div.appendChild(iconDiv);
-                }
-
-                div.appendChild(bubble);
-                container.appendChild(div);
-                return div;
-            },
-
-            scrollToBottom: function() {
-                const container = document.getElementById('chat-container');
-                container.scrollTop = container.scrollHeight;
-            },
-
-            // --- API & STREAMING ---
-            sendMessage: async function() {
-                const input = document.getElementById('user-input');
-                const text = input.value.trim();
-                
-                if (!text || this.state.isGenerating) return;
-                
-                if (!this.state.apiKey) {
-                    this.openModal('settings-modal');
-                    alert("Please enter your OpenRouter API Key first.");
-                    return;
-                }
-
-                // UI Reset
-                input.value = "";
-                input.style.height = "auto";
-                document.getElementById('welcome-screen').classList.add('hidden');
-                
-                // Add User Message
-                const chat = this.getCurrentChat();
-                chat.messages.push({ role: 'user', content: text });
-                
-                // Auto-Rename Chat (if first message)
-                if (chat.messages.length === 1) {
-                    chat.title = text.slice(0, 30) + (text.length > 30 ? "..." : "");
-                    this.renderChatList();
-                }
-
-                this.appendMessageToDOM('user', text);
-                this.saveChats();
-                
-                // Prepare AI Message Placeholder
-                this.state.isGenerating = true;
-                this.updateSendButtonState();
-                this.appendMessageToDOM('assistant', '...typing...');
-                this.scrollToBottom();
-
-                // Prepare Payload
-                const messagesPayload = [];
-                if (chat.systemPrompt) {
-                    messagesPayload.push({ role: "system", content: chat.systemPrompt });
-                }
-                messagesPayload.push(...chat.messages);
-
-                try {
-                    const response = await fetch(API_URL, {
-                        method: "POST",
-                        headers: {
-                            "Authorization": `Bearer ${this.state.apiKey}`,
-                            "Content-Type": "application/json",
-                            "HTTP-Referer": window.location.href,
-                            "X-Title": "Universal AI Clone"
-                        },
-                        body: JSON.stringify({
-                            model: this.state.model,
-                            messages: messagesPayload,
-                            stream: true
-                        })
-                    });
-
-                    if (!response.ok) {
-                        const errorData = await response.json();
-                        throw new Error(errorData.error?.message || "API Error");
-                    }
-
-                    // Reading Stream
-                    const reader = response.body.getReader();
-                    const decoder = new TextDecoder("utf-8");
-                    let aiResponse = "";
-                    const streamingDiv = document.getElementById("current-streaming-message");
-                    const streamingBubble = streamingDiv.querySelector('div'); // The inner bubble
-
-                    while (true) {
-                        const { done, value } = await reader.read();
-                        if (done) break;
-                        
-                        const chunk = decoder.decode(value);
-                        const lines = chunk.split("\n");
-                        
-                        for (const line of lines) {
-                            if (line.startsWith("data: ")) {
-                                const dataStr = line.slice(6);
-                                if (dataStr === "[DONE]") break;
-                                
-                                try {
-                                    const data = JSON.parse(dataStr);
-                                    const content = data.choices[0]?.delta?.content || "";
-                                    aiResponse += content;
-                                    
-                                    // Live Update
-                                    streamingBubble.innerHTML = marked.parse(aiResponse);
-                                    streamingBubble.classList.add('prose', 'dark:prose-invert');
-                                    this.scrollToBottom();
-                                } catch (e) {
-                                    console.warn("Stream parse error", e);
-                                }
-                            }
-                        }
-                    }
-
-                    // Finalize
-                    streamingDiv.removeAttribute("id");
-                    chat.messages.push({ role: 'assistant', content: aiResponse });
-                    this.saveChats();
-
-                } catch (error) {
-                    const streamingDiv = document.getElementById("current-streaming-message");
-                    if (streamingDiv) {
-                        streamingDiv.querySelector('div').innerText = "Error: " + error.message;
-                        streamingDiv.removeAttribute("id");
-                    }
-                    alert("Failed to generate response: " + error.message);
-                } finally {
-                    this.state.isGenerating = false;
-                    this.updateSendButtonState();
-                    this.scrollToBottom();
-                }
-            },
-
-            updateSendButtonState: function() {
-                const btn = document.getElementById('send-btn');
-                const icon = btn.querySelector('i');
-                if (this.state.isGenerating) {
-                    btn.disabled = true;
-                    icon.className = 'bx bx-loader-alt animate-spin';
-                } else {
-                    btn.disabled = false;
-                    icon.className = 'bx bxs-paper-plane';
-                }
-            }
-        };
-
-        // Initialize when DOM is ready
-        document.addEventListener('DOMContentLoaded', () => {
-            app.init();
+    // render messages
+    function renderMessages(){
+      messagesEl.innerHTML = '';
+      const chat = getCurrentChat();
+      if(!chat){ messagesEl.innerHTML = '<div class="text-center text-gray-500 mt-12">No chat selected. Create a new chat to begin.</div>'; return; }
+      chat.messages.forEach((m, idx) => {
+        const wrapper = document.createElement('div');
+        wrapper.className = (m.role === 'user' ? 'flex justify-end' : 'flex justify-start');
+        const bubble = document.createElement('div');
+        bubble.className = 'p-3 rounded-lg max-w-xl shadow-sm';
+        bubble.style.whiteSpace = 'pre-wrap';
+        if (m.role === 'user') bubble.classList.add('msg-user');
+        else bubble.classList.add('msg-ai');
+        bubble.innerHTML = renderMarkdownSafe(m.content || '');
+        wrapper.appendChild(bubble);
+        const meta = document.createElement('div');
+        meta.className = 'text-xs text-gray-400 mt-1';
+        meta.innerHTML = '<button class="copyBtn text-xs">Copy</button>';
+        meta.querySelector('.copyBtn').addEventListener('click', ()=> {
+          navigator.clipboard?.writeText(m.content || '').then(()=> alert('Copied to clipboard')).catch(()=>alert('Copy failed'));
         });
+        wrapper.appendChild(meta);
+        messagesEl.appendChild(wrapper);
+      });
+      setTimeout(()=> messagesWrap.scrollTop = messagesWrap.scrollHeight, 50);
+      // highlight code blocks
+      $$('pre code', messagesEl).forEach(block => { try { hljs.highlightElement(block); } catch(e){} });
+    }
 
-    </script>
+    // Markdown renderer
+    function renderMarkdownSafe(md){
+      try {
+        const html = marked.parse(md || '', {
+          breaks: true,
+          gfm: true,
+          highlight: function(code, lang){ try { if(lang && hljs.getLanguage(lang)) return hljs.highlight(code, {language:lang}).value; else return hljs.highlightAuto(code).value; } catch(e){ return code; } }
+        });
+        return html;
+      } catch(e){
+        return '<pre>' + escapeHtml(md) + '</pre>';
+      }
+    }
+
+    // Add message
+    function addMessage(role, content, meta={}){
+      let chat = getCurrentChat();
+      if(!chat){ chat = createChat('Conversation'); state.currentChatId = chat.id; }
+      const msg = { role, content, meta, ts: Date.now() };
+      chat.messages.push(msg);
+      persistChats();
+      renderMessages();
+      runAutomationsForMessage(msg);
+    }
+
+    // Automations
+    function renderAutomations(){
+      automationListEl.innerHTML = '';
+      state.automations.forEach((a, idx) => {
+        const div = document.createElement('div');
+        div.className = 'p-2 border rounded flex items-center justify-between';
+        div.innerHTML = `<div>${escapeHtml(a.trigger)} → ${escapeHtml(a.action)} (${escapeHtml(a.param)})</div><div><button data-idx="${idx}" class="delA px-2 py-1 border rounded text-xs">Del</button></div>`;
+        div.querySelector('.delA').addEventListener('click', ()=> { state.automations.splice(idx,1); persistAutomations(); renderAutomations(); });
+        automationListEl.appendChild(div);
+      });
+    }
+    function runAutomationsForMessage(msg){
+      if(!msg || !msg.content) return;
+      state.automations.forEach(a => {
+        try {
+          if (msg.content.toLowerCase().includes(a.trigger.toLowerCase())) {
+            if (a.action === 'send_message') {
+              addMessage('user', a.param);
+              handleSend(a.param);
+            } else if (a.action === 'open_url') {
+              if (confirm('Automation wants to open URL: ' + a.param + '\nAllow?')) window.open(a.param, '_blank');
+            } else if (a.action === 'download_url') {
+              if (confirm('Automation wants to download: ' + a.param + '\nAllow?')) downloadURL(a.param);
+            }
+          }
+        } catch(e){ console.error('Automation error', e); }
+      });
+    }
+
+    // Download helper with confirmation
+    async function downloadURL(url){
+      try {
+        if (!confirm('Download from: ' + url + '\nProceed?')) return;
+        const res = await fetch(url);
+        if (!res.ok) throw new Error('Failed to fetch: ' + res.status);
+        const blob = await res.blob();
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = (url.split('/').pop() || 'download');
+        document.body.appendChild(a); a.click(); a.remove();
+      } catch(e){ alert('Download failed: ' + e.message); }
+    }
+
+    // STREAMING (optimized version) - replace previous implementations with this robust one
+    async function streamChatCompletion(messages, opts = {}){
+      const apiKey = state.apiKey || apiKeyInput.value || '';
+      if (!apiKey) { alert('Please set your OpenRouter API key in Settings.'); return { error: 'no_api_key' }; }
+
+      const url = 'https://openrouter.ai/api/v1/chat/completions';
+      const payload = {
+        model: state.model || modelInput.value || 'deepseek/deepseek-r1:free',
+        messages: messages.map(m => ({ role: m.role, content: m.content })),
+        stream: true,
+        max_tokens: 1024
+      };
+
+      if (state.streamingController) { try { state.streamingController.abort(); } catch(_){} }
+      const controller = new AbortController();
+      state.streamingController = controller;
+
+      // create placeholder assistant message
+      function createAssistantPlaceholder(){
+        let chat = getCurrentChat();
+        if(!chat){ chat = createChat('Conversation'); state.currentChatId = chat.id; }
+        const msg = { role: 'assistant', content: '', ts: Date.now() };
+        chat.messages.push(msg);
+        persistChats();
+        renderMessages();
+        return getCurrentChat().messages.length - 1;
+      }
+
+      // throttled DOM update
+      let pendingFlush = null;
+      function updateLastAssistantMessage(text, finalize=false){
+        const chat = getCurrentChat();
+        if(!chat) return;
+        const idx = chat.messages.length - 1;
+        if (idx < 0) return;
+        chat.messages[idx].content = text;
+        if (finalize) persistChats();
+        if (pendingFlush) return;
+        pendingFlush = requestAnimationFrame(()=> {
+          pendingFlush = null;
+          try {
+            const lastWrapper = messagesEl.lastElementChild;
+            if (lastWrapper) {
+              const bubble = lastWrapper.querySelector('div') || lastWrapper.firstChild;
+              if (bubble) {
+                bubble.innerHTML = renderMarkdownSafe(text || '');
+                if (finalize) {
+                  $$('pre code', lastWrapper).forEach(b => { try { hljs.highlightElement(b); } catch(e){} });
+                }
+                messagesWrap.scrollTop = messagesWrap.scrollHeight;
+                return;
+              }
+            }
+            // fallback
+            renderMessages();
+          } catch (e){ console.error('updateLastAssistantMessage', e); try{ renderMessages(); } catch(_){} }
+        });
+      }
+
+      try {
+        const res = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + apiKey },
+          body: JSON.stringify(payload),
+          signal: controller.signal
+        });
+        if (!res.ok) {
+          const txt = await res.text();
+          throw new Error('API error: ' + res.status + ' ' + (txt||''));
+        }
+
+        // Ensure stream body exists
+        if (!res.body) {
+          const j = await res.json();
+          const content = (j.choices && j.choices[0] && (j.choices[0].message?.content || j.choices[0].text)) || '';
+          addMessage('assistant', content);
+          return { text: content };
+        }
+
+        const placeholderIndex = createAssistantPlaceholder();
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder('utf-8');
+        let buffer = '';
+        let aiText = '';
+        let batch = '';
+        let lastFlush = performance.now();
+
+        while (true) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          const chunk = decoder.decode(value, { stream: true });
+          buffer += chunk;
+          const parts = buffer.split(/\n\n/);
+          buffer = parts.pop();
+          for (const part of parts) {
+            const lines = part.split(/\n/).map(l => l.trim()).filter(Boolean);
+            for (const line of lines) {
+              let dataLine = line;
+              if (line.startsWith('data:')) dataLine = line.replace(/^data:\s*/, '');
+              if (!dataLine) continue;
+              if (dataLine === '[DONE]') {
+                updateLastAssistantMessage(aiText, true);
+                state.streamingController = null;
+                return { text: aiText };
+              }
+              let parsed = safeJSON(dataLine, null);
+              if (!parsed) {
+                const m = dataLine.match(/\{.*\}$/s);
+                if (m) parsed = safeJSON(m[0], null);
+              }
+              if (parsed) {
+                const choice = Array.isArray(parsed.choices) ? parsed.choices[0] : parsed.choices;
+                const delta = choice?.delta || {};
+                const token = delta?.content || choice?.text || '';
+                if (token) batch += token;
+              } else {
+                batch += dataLine;
+              }
+              const now = performance.now();
+              if (batch && now - lastFlush > 40) {
+                aiText += batch;
+                batch = '';
+                lastFlush = now;
+                updateLastAssistantMessage(aiText, false);
+              }
+            }
+          }
+        }
+
+        // final flush
+        if (batch) { aiText += batch; batch = ''; updateLastAssistantMessage(aiText, false); }
+        updateLastAssistantMessage(aiText, true);
+        state.streamingController = null;
+        return { text: aiText };
+      } catch (err) {
+        state.streamingController = null;
+        if (err.name === 'AbortError') {
+          console.warn('Stream aborted');
+          try { updateLastAssistantMessage((getCurrentChat().messages.slice(-1)[0]?.content||'') + '\\n\\n[stream aborted]', true); } catch(e){}
+          return { error: 'aborted' };
+        }
+        console.error('Stream error', err);
+        try {
+          const chat = getCurrentChat();
+          if (chat && chat.messages && chat.messages.length) {
+            const lastIdx = chat.messages.length - 1;
+            chat.messages[lastIdx].content = (chat.messages[lastIdx].content || '') + '\\n\\n[Error] ' + (err.message || String(err));
+            persistChats();
+            renderMessages();
+          } else {
+            addMessage('assistant', '[Error] ' + (err.message || String(err)));
+          }
+        } catch(e){}
+        return { error: err.message || String(err) };
+      }
+    }
+
+    // Handle sending (parses slash commands)
+    async function handleSend(rawText){
+      const text = (rawText !== undefined) ? rawText : (promptInput.value || '');
+      if(!text || !text.trim()) return;
+      promptInput.value = '';
+      // handle slash commands
+      const trimmed = text.trim();
+      if (trimmed.startsWith('/download ')) {
+        const url = trimmed.slice(10).trim();
+        if (url) { addMessage('user', text); await downloadURL(url); return; }
+      }
+      if (trimmed.startsWith('/open ')) {
+        const url = trimmed.slice(6).trim();
+        if (url) { addMessage('user', text); if (confirm('Open URL: ' + url + ' ?')) window.open(url, '_blank'); return; }
+      }
+      if (trimmed.startsWith('/image ')) {
+        const desc = trimmed.slice(7).trim();
+        if (desc) { addMessage('user', text); const p = await generatePlaceholderImage(desc); addMessage('assistant', '![generated image](' + p + ')\\n\\n*Image generated: ' + escapeHtml(desc) + '*'); return; }
+      }
+      // normal chat flow
+      addMessage('user', text);
+      const chat = getCurrentChat();
+      const msgs = [];
+      let systemPrompt = '';
+      if (currentSystemSelect.value === '__chat' && chat && chat.system) systemPrompt = chat.system;
+      else systemPrompt = (localStorage.getItem(LS.GLOBAL_SYSTEM) || '');
+      if (systemPrompt) msgs.push({ role: 'system', content: systemPrompt });
+      chat.messages.forEach(m => msgs.push({ role: m.role === 'assistant' ? 'assistant' : m.role, content: m.content }));
+      await streamChatCompletion(msgs);
+    }
+
+    // Input handlers
+    function attachInputHandlers(){
+      sendBtn.addEventListener('click', ()=> handleSend());
+      promptInput.addEventListener('keydown', (e)=> {
+        if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }
+      });
+    }
+
+    // Theme
+    function updateThemeUI(){
+      const theme = localStorage.getItem(LS.THEME) || state.theme;
+      document.body.setAttribute('data-theme', theme);
+      if (theme === 'dark') document.documentElement.classList.add('dark'); else document.documentElement.classList.remove('dark');
+    }
+    function toggleTheme(){ state.theme = state.theme === 'light' ? 'dark' : 'light'; saveToStorage(LS.THEME, state.theme); updateThemeUI(); }
+
+    // System editor
+    function openSystemEditor(){
+      const chat = getCurrentChat();
+      if (currentSystemSelect.value === '__chat' && chat) systemEditorArea.value = chat.system || '';
+      else systemEditorArea.value = localStorage.getItem(LS.GLOBAL_SYSTEM) || '';
+      systemModal.classList.remove('hidden');
+    }
+    function closeSystemEditor(){ systemModal.classList.add('hidden'); }
+    function saveSystemPrompt(asGlobal=false){
+      const val = systemEditorArea.value || '';
+      if (asGlobal) { localStorage.setItem(LS.GLOBAL_SYSTEM, val); globalSystemInput.value = val; }
+      else { const chat = getCurrentChat(); if (chat) { chat.system = val; persistChats(); } }
+      closeSystemEditor();
+    }
+
+    // File upload
+    function handleFiles(files){
+      if(!files || !files.length) return;
+      Array.from(files).forEach(f=>{
+        const reader = new FileReader();
+        reader.onload = ()=> {
+          // store as metadata only (avoid huge storage). Provide a small preview for images
+          if (f.type.startsWith('image/')) {
+            addMessage('user', `![${escapeHtml(f.name)}](${reader.result})\n\n[Uploaded image: ${escapeHtml(f.name)}]`, { filename: f.name });
+          } else {
+            addMessage('user', `[Uploaded file: ${escapeHtml(f.name)}]\n\nFile type: ${escapeHtml(f.type || 'unknown')}`, { filename: f.name });
+          }
+        };
+        if (f.type.startsWith('image/')) reader.readAsDataURL(f);
+        else reader.readAsText(f);
+      });
+    }
+
+    // Placeholder image creation via canvas
+    async function generatePlaceholderImage(text) {
+      const canvas = document.createElement('canvas');
+      canvas.width = 1200; canvas.height = 675;
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = window.getComputedStyle(document.body).getPropertyValue('--ai') || '#f3f4f6';
+      ctx.fillRect(0,0,canvas.width,canvas.height);
+      ctx.fillStyle = '#111827';
+      ctx.font = '28px sans-serif';
+      wrapText(ctx, 'Image Preview: ' + text, 40, 80, 1120, 36);
+      return canvas.toDataURL('image/png');
+    }
+    function wrapText(ctx, text, x, y, maxWidth, lineHeight){
+      const words = text.split(' ');
+      let line = '';
+      for (let n = 0; n < words.length; n++) {
+        const testLine = line + words[n] + ' ';
+        const metrics = ctx.measureText(testLine);
+        if (metrics.width > maxWidth && n > 0) {
+          ctx.fillText(line, x, y);
+          line = words[n] + ' ';
+          y += lineHeight;
+        } else {
+          line = testLine;
+        }
+      }
+      ctx.fillText(line, x, y);
+    }
+
+    // Video demo (manual SDP copy/paste)
+    async function openVideoModal(){
+      videoModal.classList.remove('hidden');
+      videoModal.style.display = 'flex';
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+        localVideo.srcObject = stream;
+        remoteVideo.srcObject = null;
+        state.pc = new RTCPeerConnection();
+        stream.getTracks().forEach(track => state.pc.addTrack(track, stream));
+        state.pc.ontrack = (ev)=> { remoteVideo.srcObject = ev.streams[0]; };
+        state.pc.onicecandidate = ()=> {};
+        createOfferBtn.onclick = async () => {
+          const offer = await state.pc.createOffer();
+          await state.pc.setLocalDescription(offer);
+          sdpArea.value = JSON.stringify({ type: state.pc.localDescription.type, sdp: state.pc.localDescription.sdp });
+        };
+        acceptAnswerBtn.onclick = async () => {
+          try {
+            const remote = safeJSON(sdpArea.value);
+            if (!remote || !remote.sdp) throw new Error('Invalid SDP');
+            await state.pc.setRemoteDescription(remote);
+            alert('Remote SDP set');
+          } catch(e){ alert('Failed to set remote SDP: ' + e.message); }
+        };
+        copyLocalSDPBtn.onclick = ()=> { navigator.clipboard?.writeText(sdpArea.value).then(()=>alert('Copied')).catch(()=>alert('Copy failed')); };
+        endCallBtn.onclick = ()=> closeVideoModal();
+      } catch(e){ alert('Could not access camera/mic: ' + e.message); }
+    }
+    function closeVideoModal(){
+      videoModal.classList.add('hidden');
+      videoModal.style.display = 'none';
+      try { if (localVideo.srcObject) { localVideo.srcObject.getTracks().forEach(t=>t.stop()); localVideo.srcObject = null; } } catch(e){}
+      try { if (remoteVideo.srcObject) { remoteVideo.srcObject.getTracks().forEach(t=>t.stop()); remoteVideo.srcObject=null; } } catch(e){}
+      try { if (state.pc) { state.pc.close(); state.pc = null; } } catch(e){}
+    }
+
+    // Export / Import chats
+    function exportChats(){
+      try {
+        const data = JSON.stringify({ chats: state.chats, global: localStorage.getItem(LS.GLOBAL_SYSTEM) || '' });
+        const blob = new Blob([data], { type: 'application/json' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = 'uaic_export_' + Date.now() + '.json';
+        document.body.appendChild(a); a.click(); a.remove();
+      } catch(e){ alert('Export failed: ' + e.message); }
+    }
+    function importChats(){
+      const inp = document.createElement('input');
+      inp.type = 'file'; inp.accept = 'application/json';
+      inp.onchange = (e)=>{
+        const f = e.target.files[0]; if(!f) return;
+        const reader = new FileReader();
+        reader.onload = ()=>{
+          try {
+            const j = JSON.parse(reader.result);
+            if (Array.isArray(j.chats)) { state.chats = j.chats.concat(state.chats); persistChats(); renderChatList(); alert('Imported ' + j.chats.length + ' chats.'); }
+            if (j.global) { localStorage.setItem(LS.GLOBAL_SYSTEM, j.global); globalSystemInput.value = j.global; }
+          } catch(e){ alert('Import failed: ' + e.message); }
+        };
+        reader.readAsText(f);
+      };
+      inp.click();
+    }
+
+    // UI wiring
+    function wireUI(){
+      newChatBtn.addEventListener('click', ()=> createChat());
+      mobileNewChat.addEventListener('click', ()=> createChat());
+      saveSettingsBtn.addEventListener('click', ()=>{
+        state.apiKey = apiKeyInput.value.trim();
+        state.model = modelInput.value.trim() || state.model;
+        saveToStorage(LS.API_KEY, state.apiKey);
+        saveToStorage(LS.MODEL, state.model);
+        saveToStorage(LS.GLOBAL_SYSTEM, globalSystemInput.value || '');
+        localStorage.setItem(LS.GLOBAL_SYSTEM, globalSystemInput.value || '');
+        alert('Settings saved locally.');
+      });
+      clearStorageBtn.addEventListener('click', ()=> {
+        if (!confirm('Clear stored API key, chats, and settings?')) return;
+        localStorage.removeItem(LS.API_KEY); localStorage.removeItem(LS.MODEL); localStorage.removeItem(LS.CHATS);
+        localStorage.removeItem(LS.GLOBAL_SYSTEM); localStorage.removeItem(LS.THEME); localStorage.removeItem(LS.AUTOMATIONS);
+        location.reload();
+      });
+      toggleThemeBtn.addEventListener('click', toggleTheme);
+      mobileThemeToggle.addEventListener('click', toggleTheme);
+      mobileMenuBtn.addEventListener('click', ()=> mobileSidebar.classList.toggle('open'));
+      openSystemEditorBtn.addEventListener('click', openSystemEditor);
+      closeSystemBtn.addEventListener('click', closeSystemEditor);
+      saveSystemBtn.addEventListener('click', ()=> saveSystemPrompt(false));
+      saveSystemGlobalBtn.addEventListener('click', ()=> saveSystemPrompt(true));
+      uploadBtn.addEventListener('click', ()=> fileInput.click());
+      fileInput.addEventListener('change', (e)=> handleFiles(e.target.files));
+      imageCreateBtn.addEventListener('click', async ()=> {
+        const p = prompt('Describe image to create:'); if (!p) return;
+        addMessage('user', '/image ' + p);
+        const dataUrl = await generatePlaceholderImage(p);
+        addMessage('assistant', '![generated image](' + dataUrl + ')\\n\\n*Image: ' + escapeHtml(p) + '*');
+      });
+      startVideoBtn.addEventListener('click', openVideoModal);
+      automationBtn.addEventListener('click', ()=> { automationModal.classList.remove('hidden'); renderAutomations(); });
+      $('#closeAutomation')?.addEventListener('click', ()=> automationModal.classList.add('hidden'));
+      addAutomationBtn.addEventListener('click', ()=> {
+        const t = automationTrigger.value.trim(), a = automationAction.value, p = automationActionParam.value.trim();
+        if (!t || !a) return alert('Trigger and action required');
+        state.automations.push({ trigger: t, action: a, param: p });
+        persistAutomations();
+        automationTrigger.value=''; automationActionParam.value=''; renderAutomations();
+      });
+      importBtn.addEventListener('click', importChats);
+      exportBtn.addEventListener('click', exportChats);
+      // keyboard shortcut
+      document.addEventListener('keydown', (e)=> { if (e.ctrlKey && e.key==='k'){ promptInput.focus(); e.preventDefault(); } });
+    }
+
+    // Initialization
+    function init(){
+      try {
+        loadFromStorage();
+        if (!state.chats.length) {
+          const c = createChat('Welcome');
+          c.messages.push({ role:'assistant', content: 'Hello — this is your Universal AI chat. Configure your OpenRouter API key in Settings to start streaming responses.' });
+          persistChats();
+        }
+        state.currentChatId = state.chats[0] && state.chats[0].id;
+        renderChatList();
+        renderMessages();
+        wireUI();
+        attachInputHandlers();
+        loading.style.display = 'none';
+        app.classList.remove('hidden');
+        // mobile input focus adjustment
+        promptInput.addEventListener('focus', ()=> setTimeout(()=> promptInput.scrollIntoView({behavior:'smooth', block:'center'}), 300));
+      } catch(e){
+        console.error('Init error', e);
+        loading.style.display = 'none';
+        app.classList.remove('hidden');
+        alert('Initialization error: ' + (e.message || e));
+      }
+    }
+
+    // Expose for debugging
+    window.UAIC = { state, createChat, deleteChat, addMessage, streamChatCompletion, downloadURL };
+
+    window.addEventListener('load', init);
+  })();
+  </script>
 </body>
 </html>
